@@ -39,3 +39,9 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## Project conventions
+
+- **Styling:** NativeWind v4 (Tailwind v3). Style with `className`, not `StyleSheet`. Merge classes with `cn()` from `@/lib/utils`. Add theme colors in `tailwind.config.js`.
+- **Structure:** Next.js-style. Only routes go in `src/app/`; shared UI goes in `src/components/{ui,layout}`, helpers in `src/lib`.
+- **AI logs (assignment requirement):** every AI session must be saved as a Markdown file in `ai-logs/` (`YYYY-MM-DD-NN-topic.md`) and listed in `ai-logs/README.md`. Remind the user to run `/export` at the end of each session.
