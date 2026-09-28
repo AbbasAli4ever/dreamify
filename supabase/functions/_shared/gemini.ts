@@ -7,6 +7,10 @@ import { isSymbolKey, SYMBOL_KEYS } from './symbols.ts';
 // Base URL override exists only for local end-to-end tests against a fake server.
 const API = `${Deno.env.get('GEMINI_API_BASE') ?? 'https://generativelanguage.googleapis.com'}/v1beta/models`;
 const TEXT_MODEL = () => Deno.env.get('GEMINI_TEXT_MODEL') ?? 'gemini-3.8-flash';
+// The spoken reply wants speed over depth (the person is waiting for the voice): a lite model
+// with minimal thinking answered in ~1.4 s vs 2–5 s for the full model. Overridable.
+const REPLY_MODEL = () => Deno.env.get('GEMINI_REPLY_MODEL') ?? 'gemini-3.1-flash-lite';
+const REPLY_THINKING = () => Deno.env.get('GEMINI_REPLY_THINKING') ?? 'minimal';
 const IMAGE_MODEL = () => Deno.env.get('GEMINI_IMAGE_MODEL') ?? 'gemini-3.1-flash-image';
 
 function apiKey() {
@@ -126,6 +130,55 @@ export async function analyzeDream(
     art_prompt: (raw.art_prompt ?? transcript).trim(),
     color: /^#[0-9a-f]{6}$/i.test(raw.color ?? '') ? raw.color : '#6F82C9',
   };
+}
+
+// ---------- Spoken reply ----------
+
+const REPLY_SYSTEM = `You are the voice of Dreamify, a dream journal. The person has just told you their dream out loud, and your words will be read aloud to them.
+
+Reply the way a calm, perceptive friend would, right after listening, in exactly three sentences:
+1. A very short first reaction to the most striking image, 2 to 5 words (e.g. "Snow, falling indoors..." or "Water again...").
+2. One sentence of 10 to 18 words reflecting a vivid, concrete detail you heard and gently naming the feeling you sense. If one of the earlier dreams' symbols clearly returns, you may say so here.
+3. One sentence of 8 to 14 words saying you'll paint the dream and gather what it might be telling them.
+- No interpretation yet, no questions, no advice, no greetings, no names.
+- Plain spoken English: no markdown, no asterisks, no emojis, no lists. Commas and ellipses for natural pauses.`;
+
+/** A short, warm spoken reaction to a dream, for Deepgram to read aloud. */
+export async function replyToDream(
+  transcript: string,
+  history: { title: string | null; symbols: { key: string; label: string }[] }[],
+): Promise<string> {
+  const earlier = history.length
+    ? history.slice(0, 10).map((h) => h.symbols.map((s) => s.key).join(', ')).join('; ')
+    : '(none yet)';
+  const body = (thinking: string | null) => ({
+    systemInstruction: { parts: [{ text: REPLY_SYSTEM }] },
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: `The dream:\n"""\n${transcript}\n"""\n\nSymbols in earlier dreams: ${earlier}` }],
+      },
+    ],
+    generationConfig: { temperature: 0.9, ...(thinking ? { thinkingConfig: { thinkingLevel: thinking } } : null) },
+  });
+
+  let parts: Part[];
+  try {
+    parts = await generate(REPLY_MODEL(), body(REPLY_THINKING()));
+  } catch (e) {
+    // Unknown model, unsupported thinking level or a busy model: use the main model as is.
+    console.error('reply model failed, falling back', String(e).slice(0, 200));
+    parts = await generate(TEXT_MODEL(), body(null));
+  }
+  const text = parts
+    .filter((p) => !('thought' in p && (p as { thought?: boolean }).thought))
+    .map((p) => p.text ?? '')
+    .join('')
+    .replace(/[*_#`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) throw new Error('Gemini returned an empty reply');
+  return text.slice(0, 400);
 }
 
 // ---------- Artwork ----------

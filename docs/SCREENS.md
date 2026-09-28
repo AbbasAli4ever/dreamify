@@ -213,8 +213,15 @@ The reference uses **no tab bar**. Navigation happens through the floating botto
 ```text
 src/app/
 ├── _layout.tsx                 # Root Stack, fonts, providers, global.css
-├── index.tsx                   # Redirect: onboarding (first run) or /home
-├── onboarding.tsx              # S1
+├── index.tsx                   # Redirect: /welcome (signed out), /onboarding (new account) or /home
+├── (auth)/                     # A0–A3, only when signed out (Stack.Protected)
+│   ├── welcome.tsx             # A0 Google / Sign up with email / Sign in
+│   ├── sign-in.tsx             # A1
+│   ├── sign-up.tsx             # A2 (+ "Check your inbox" state)
+│   └── forgot-password.tsx     # A3
+├── auth/callback.tsx           # OAuth + email-link landing (exchanges ?code)
+├── reset-password.tsx          # A4 new password (signed in)
+├── onboarding.tsx              # S1 (once per account)
 ├── home.tsx                    # S2
 ├── write.tsx                   # S3  (fullScreenModal)
 ├── processing/[id].tsx         # S4  (fade, no back gesture)
@@ -229,6 +236,12 @@ src/app/
 
 | Screen | Route | Presentation | Params |
 | --- | --- | --- | --- |
+| A0 Welcome | `/welcome` | stack root when signed out | — |
+| A1 Sign in | `/sign-in` | stack push | — |
+| A2 Sign up | `/sign-up` | stack push | — |
+| A3 Forgot password | `/forgot-password` | stack push | `email?` |
+| A4 New password | `/reset-password` | stack push | — |
+| Auth callback | `/auth/callback` | fade | `code`, `next?`, `error_description?` |
 | S1 Onboarding | `/onboarding` | stack, no header | — |
 | S2 Home | `/home` | stack root after onboarding | — |
 | S3 Write | `/write` | `fullScreenModal` | — |
@@ -384,13 +397,33 @@ Each screen lists: **Purpose · Route · Layout (top→bottom) · Components · 
 **Components:** `NightBackground`, `PillButton` (solid variant), page dots, `RichText`.
 **Data:** none. Store an `onboarded = true` flag locally (AsyncStorage).
 **States:** default only.
-**Interactions:** swipe or Continue to go forward. Begin or Skip → `router.replace('/home')`. Later, sign-in (Supabase anonymous or email) can slot in before Home.
+**Interactions:** swipe or Continue to go forward. Begin or Skip → marks the **account** onboarded (`user_metadata.onboarded`) and opens Home. Shown automatically after sign-up (A2) or a first Google sign-in, never again for that account.
+**Replay:** a tiny "✧ Take the walkthrough" link at the bottom of Home opens `/onboarding?replay=1`; the last button says **Done**, and Skip / Done go back to Home without changing the account. Verified in Chrome against the hosted project (new user → onboarding → Begin → Home; link → Skip → Home; link → Done → Home; reload stays on Home).
 
 - [x] Pager with 3 slides
 - [x] Assets float and parallax on swipe
 - [x] Persist the onboarded flag and redirect in `index.tsx`
 
 **Built** (2026-09-27): [`src/app/onboarding.tsx`](../src/app/onboarding.tsx), [`src/components/onboarding/`](../src/components/onboarding). Screenshots: [`screens/s1-onboarding-1.jpg`](./screens/s1-onboarding-1.jpg), [`-2`](./screens/s1-onboarding-2.jpg), [`-3`](./screens/s1-onboarding-3.jpg).
+
+---
+
+### A0–A4 — Accounts (welcome, sign in, sign up, forgot / new password)
+
+**Routes:** `/welcome`, `/sign-in`, `/sign-up`, `/forgot-password`, `/reset-password`, `/auth/callback` · **Theme:** night (same `NightBackground`, Bricolage `display` titles with one *emphasised* word, pill buttons, pill inputs like Search).
+
+- **A0 Welcome:** logo, floating moon with glow, "Your dreams, *remembered*.", **Continue with Google** (ghost pill, four-colour G), **Sign up with email** (solid), "Already have an account? **Sign in**".
+- **A1 Sign in:** Google · or · Email, Password (Show/Hide) · "Forgot password?" · **Sign in**. Errors inline in soft red ("That email and password don't match."). Unconfirmed email → "Resend confirmation link".
+- **A2 Sign up:** Google · or · Name, Email, Password (≥ 8, hint under the field) · **Create account**. If the project requires confirmation → "Check your *inbox*." with Resend.
+- **A3 Forgot password:** Email → "Check your *inbox*."
+- **A4 Set a new password:** new + confirm → saved → back (Settings) or into the app (reset link).
+- Buttons show a spinner while working; the keyboard's Next/Go moves through the fields; autofill hints (`email`, `current-password`, `new-password`).
+
+- [x] Welcome, sign in, sign up, forgot and new password screens
+- [x] Email + password and Google (Expo Go compatible), email links via `/auth/callback`
+- [x] Route guards (`Stack.Protected`), onboarding once per account, per-user data
+
+**Built** (2026-09-28): [`src/app/(auth)/`](../src/app/(auth)), [`src/app/auth/callback.tsx`](../src/app/auth/callback.tsx), [`src/app/reset-password.tsx`](../src/app/reset-password.tsx), [`src/components/auth/`](../src/components/auth), [`src/providers/auth-provider.tsx`](../src/providers/auth-provider.tsx), [`src/lib/backend/auth.ts`](../src/lib/backend/auth.ts). Backend details: [`BACKEND.md`](./BACKEND.md#accounts-supabase-auth).
 
 ---
 
@@ -418,10 +451,20 @@ Each screen lists: **Purpose · Route · Layout (top→bottom) · Components · 
 - A timer (`00:14`) and the hint "Tell me everything, even fragments." sit under the orb.
 - The Echo card and Recent dreams fade out, and scrolling is locked with the view at the top.
 - Bottom bar: ✕ discard · **Pause / Resume** pill · ✓ finish (solid).
-- ✓ saves the recording as a dream with `status: 'processing'` (it shows in Recent with a small `working` orb) and shows "Dream saved · 00:42". Recordings under 2 s are treated as accidental taps. *Next step: ✓ goes to S4 Processing.*
+- ✓ saves the recording as a dream with `status: 'processing'` and starts the pipeline. Recordings under 2 s are treated as accidental taps. **The user stays on Home** (see *Answer mode*).
 - Mic permission denied → "Microphone access is off. Open Settings" under the button.
 - Hook: `src/hooks/use-dream-recorder.ts` (expo-audio, metering on, 100 ms polling).
 - Screenshots: [`screens/s2-home-recording.jpg`](./screens/s2-home-recording.jpg), iOS simulator frames [`screens/s2-home-recording-ios.jpg`](./screens/s2-home-recording-ios.jpg).
+
+**Answer mode** (2026-09-28, made minimal on the user's request): after ✓ the listening screen *becomes* the agent; no reply text, no checklist, no Processing screen.
+1. **Thinking:** headline "Taking it *in*…", orb in the `searching` shape.
+2. **Speaking:** the headline goes away; only the orb, in the `breathing` shape, moving with the agent's voice (Gemini writes a 3-sentence reply; Deepgram voices each sentence in parallel; the app plays them back to back and feeds the audio level to the orb). The words are heard, not shown.
+3. **Working:** after the voice, the same screen stays: the orb takes the current step's shape (`working` → `composing` → `connecting` → `weaving`).
+4. **Throughout:** the only other UI is the slim `ProcessingBar` at the bottom: the current step ("Painting your dream…") over four thin segments (the active one pulses). On failure it shows "Couldn't finish this dream" (or "I couldn't hear any words") with **Try again** / **Close**.
+5. **Opens itself:** when the dream is ready (and the voice has finished), S5 opens (`fresh=1`). Back from S5 → the normal Home.
+- No reply (failed, demo mode, web): the orb speaks silently for the text's reading time, or goes straight to working. The reply wait gives up after 25 s. Write (S3) keeps the S4 flow.
+- Code: [`src/hooks/use-agent-voice.ts`](../src/hooks/use-agent-voice.ts), [`src/components/home/processing-bar.tsx`](../src/components/home/processing-bar.tsx).
+- **Verified** on the iOS simulator (Expo Go, hosted backend, real AI) with a recorded voice dream: "Taking it in…" + bar → the orb speaks (no text) from ~14 s → the orb keeps working with "Painting your dream…" → the dream opened by itself at ~40 s. Screenshots: [`thinking`](./screens/s2-answer-thinking-ios.jpg), [`speaking`](./screens/s2-answer-speaking-ios.jpg), [`working`](./screens/s2-answer-working-ios.jpg), [`opened`](./screens/s2-answer-opened-dream-ios.jpg).
 
 **Components:** `NightBackground` (+ stars), `Avatar`, `RichText`, `RecordOrb` + `DreamOrb`, `EchoCard`, `DreamArtTile`, `BottomActionBar`, `CircleButton`, `PillButton`.
 **Data:** user's first name, `dreams.slice(0, 5)`, latest `echo`.
@@ -719,7 +762,8 @@ Dropped from the reference: Devices, Language, Passcode & Face ID, Support.
 - **Morning reminder:** Switch + time chips 06:00–08:30 → a daily local notification "What do you remember?". Asks for permission first (Android: creates a channel first). If denied, it shows a message and the switch stays off. On web: "Reminders work in the mobile app."
 - **Export my dreams:** the share sheet with every ready dream as plain text (title, date, emotions, symbols, transcript, insight).
 - **About Dreamify:** expands a short description + orb credit.
-- **Sign out:** confirm → clears the reminder, resets the profile, clears the onboarding flag → onboarding. *(Placeholder until Supabase auth.)*
+- **Account** (with Supabase): the email and "Signed in with Google / email"; **Change password** for email accounts (→ A4). The name is saved on the account (`display_name`).
+- **Sign out:** confirm → clears the reminder, signs out this device → Welcome. Dreams stay in the account. (Demo mode without `.env`: resets to onboarding.)
 - Version from `expo-constants` at the bottom.
 **Verified:** Chrome (rename → greeting "Zaeem", persists across reload; web reminder message; About; Sign out → `/onboarding` and name back to Abbas). iOS: turning the reminder on raised the native permission prompt. **Not verified:** the scheduled notification itself (scripted taps can't press Allow).
 Screenshots: [`screens/s10-settings.jpg`](./screens/s10-settings.jpg), [`s10-settings-ios-permission.jpg`](./screens/s10-settings-ios-permission.jpg).
@@ -773,5 +817,5 @@ Frontend first, all screens on mock data, then the backend.
 - [ ] **Name:** the logo provided says **Dreamify**, so the app is Dreamify and **Dream Echo** is the name of the feature (USP). *(Assumed; confirm.)*
 - [ ] **Live transcription during recording** (R02 streaming text) vs. transcribing after finishing. Streaming needs a realtime STT API, so v1 proposal: transcribe after.
 - [ ] **Audio AI beyond STT:** do we also read the reflection question aloud (TTS) on Reveal? This would strengthen the "uses AI for audio" requirement.
-- [ ] **Auth:** Supabase anonymous sign-in for the demo, or email magic link?
+- [x] **Auth:** email + password and Google via Supabase Auth. *(Decided 2026-09-28; replaced anonymous sign-in.)*
 - [ ] **Art style prompt:** one fixed house style (e.g. "surreal, dark navy, soft film grain, dreamlike") so the gallery feels cohesive?

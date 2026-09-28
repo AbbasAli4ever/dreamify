@@ -1,5 +1,7 @@
 // process-dream: turns a saved dream into a full one.
 //   Deepgram STT (voice dreams) → Gemini analysis → Gemini artwork + Deepgram TTS of the question.
+//   Voice dreams also get a short reply (Gemini) as soon as the words are known, in parallel with
+//   the analysis. The app plays it through the `speak` function (Deepgram voice, made on demand).
 // Replies 202 at once and keeps working in the background; the app polls `processing_stage`.
 
 import '@supabase/functions-js/edge-runtime.d.ts';
@@ -7,7 +9,7 @@ import { withSupabase } from '@supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { transcribeAudio, speak } from '../_shared/deepgram.ts';
-import { analyzeDream, paintDream } from '../_shared/gemini.ts';
+import { analyzeDream, paintDream, replyToDream } from '../_shared/gemini.ts';
 
 type Admin = SupabaseClient;
 
@@ -15,7 +17,9 @@ type DreamRow = {
   id: string;
   user_id: string;
   status: string;
+  input_type: 'voice' | 'text';
   transcript: string;
+  reply_text: string | null;
   audio_path: string | null;
 };
 
@@ -42,6 +46,7 @@ async function run(admin: Admin, dream: DreamRow) {
       if (error || !file) throw new Error(`audio download failed: ${error?.message}`);
       transcript = await transcribeAudio(await file.arrayBuffer(), file.type || 'audio/mp4');
       if (!transcript) throw new Error("Couldn't hear any words in the recording.");
+      await update({ transcript });
     }
 
     // Earlier dreams give Gemini context for recurring symbols (Dream Echo).
@@ -53,6 +58,12 @@ async function run(admin: Admin, dream: DreamRow) {
       .neq('id', dream.id)
       .order('created_at', { ascending: false })
       .limit(20);
+
+    // The spoken reply runs alongside the analysis. Not fatal: '' means "no reply".
+    const replying =
+      dream.input_type === 'voice' && dream.reply_text === null
+        ? reply(admin, dream, transcript, history ?? [])
+        : Promise.resolve();
 
     const a = await analyzeDream(transcript, history ?? []);
 
@@ -93,6 +104,7 @@ async function run(admin: Admin, dream: DreamRow) {
       }),
     ]);
 
+    await replying;
     const problems = [art, voice]
       .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
       .map((r) => String(r.reason?.message ?? r.reason));
@@ -112,6 +124,25 @@ async function run(admin: Admin, dream: DreamRow) {
   }
 }
 
+/**
+ * Gemini writes a short spoken reaction. Only the text is saved: the `speak` function
+ * voices it on demand, which skips the storage upload, polling and signed-URL download.
+ */
+async function reply(
+  admin: Admin,
+  dream: DreamRow,
+  transcript: string,
+  history: { title: string | null; symbols: { key: string; label: string }[] }[],
+) {
+  try {
+    const text = await replyToDream(transcript, history);
+    await admin.from('dreams').update({ reply_text: text }).eq('id', dream.id);
+  } catch (e) {
+    console.error('reply failed', dream.id, String(e));
+    await admin.from('dreams').update({ reply_text: '' }).eq('id', dream.id);
+  }
+}
+
 export default {
   fetch: withSupabase({ auth: 'user' }, async (req, ctx) => {
     const { dream_id } = await req.json().catch(() => ({}));
@@ -120,7 +151,7 @@ export default {
     // RLS-scoped read: a user can only process their own dream.
     const { data: dream, error } = await ctx.supabase
       .from('dreams')
-      .select('id, user_id, status, transcript, audio_path')
+      .select('id, user_id, status, input_type, transcript, audio_path, reply_text')
       .eq('id', dream_id)
       .single();
     if (error || !dream) return Response.json({ error: 'Dream not found' }, { status: 404 });

@@ -21,7 +21,7 @@ import { CircleButton } from '@/components/ui/circle-button';
 import { Icon } from '@/components/ui/icon';
 import { formatDateTime } from '@/lib/dates';
 import { ensureReminderPermission, scheduleMorningReminder } from '@/lib/reminders';
-import { setOnboarded } from '@/lib/storage';
+import { useAuth } from '@/providers/auth-provider';
 import { useDreams } from '@/providers/dreams-provider';
 import { useProfile, type Reminder } from '@/providers/profile-provider';
 
@@ -52,7 +52,8 @@ function confirm(title: string, message: string, action: string, onConfirm: () =
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const profile = useProfile();
-  const { dreams, backend, signOut: signOutDreams } = useDreams();
+  const { dreams } = useDreams();
+  const { user, backend, signOut: signOutAccount } = useAuth();
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState(profile.name);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -100,16 +101,14 @@ export default function SettingsScreen() {
     confirm(
       'Sign out?',
       backend
-        ? 'This device will start fresh with a new private dream world. Your current dreams stay saved in the cloud, but this device will no longer be able to open them.'
+        ? 'Your dreams stay safe in your account. Sign in again any time to see them.'
         : 'Your name and reminder will be reset and onboarding will show again.',
       'Sign out',
       async () => {
         await scheduleMorningReminder({ enabled: false, hour: 7, minute: 0 }).catch(() => {});
         profile.reset();
-        await signOutDreams();
-        await setOnboarded(false);
-        router.dismissAll();
-        router.replace('/onboarding');
+        await signOutAccount().catch(() => {});
+        // The route guards close the app screens and show Welcome (or onboarding in demo mode).
       },
     );
   }
@@ -184,9 +183,25 @@ export default function SettingsScreen() {
                   setDraftName(profile.name);
                   setEditingName(true);
                 }}
-                last
+                last={!backend}
               />
             )}
+            {backend && user ? (
+              <SettingsRow
+                icon="check"
+                label={user.provider === 'google' ? 'Signed in with Google' : 'Signed in with email'}
+                detail={user.email}
+                last={user.provider === 'google'}
+              />
+            ) : null}
+            {backend && user?.provider === 'email' ? (
+              <SettingsRow
+                icon="settings"
+                label="Change password"
+                onPress={() => router.push('/reset-password')}
+                last
+              />
+            ) : null}
           </SettingsGroup>
 
           {/* Reminder */}

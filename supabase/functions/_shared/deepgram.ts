@@ -31,7 +31,7 @@ export async function transcribeAudio(audio: ArrayBuffer, contentType: string): 
 }
 
 /** Speech for `text` as MP3 bytes. */
-export async function speak(text: string): Promise<Uint8Array> {
+export async function speak(text: string): Promise<Uint8Array<ArrayBuffer>> {
   const params = new URLSearchParams({ model: TTS_VOICE(), encoding: 'mp3' });
   const res = await fetch(`${API}/speak?${params}`, {
     method: 'POST',

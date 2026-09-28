@@ -31,6 +31,8 @@ export async function processDream(dream: Dream, update: (patch: Partial<Dream>)
   const transcript = dream.transcript || mock.transcribe(dream.id);
   const symbols = mock.findSymbols(transcript);
   update({ transcript, title: mock.makeTitle(symbols, transcript), processingStage: 1 });
+  if (dream.inputType === 'voice' && !dream.reply)
+    update({ reply: { text: mock.makeReply(symbols, mock.findEmotions(transcript)) } });
 
   // 2. Emotions.
   await wait(MOCK_DURATION.emotions);

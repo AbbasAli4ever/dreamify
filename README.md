@@ -20,8 +20,11 @@ Routing is file-based, the same way the Next.js App Router works:
 ```
 src/
 ├── app/                    # Routes only — every file is a screen
-│   ├── _layout.tsx         # Root layout: fonts, providers, Stack  (Next.js: app/layout.tsx)
-│   ├── index.tsx           # Entry: redirects to onboarding or home
+│   ├── _layout.tsx         # Root layout: fonts, providers, Stack + auth guards  (Next.js: app/layout.tsx)
+│   ├── index.tsx           # Entry: redirects to welcome, onboarding or home
+│   ├── (auth)/             # Signed-out group: welcome, sign-in, sign-up, forgot-password  (Next.js: (group)/)
+│   ├── auth/callback.tsx   # "/auth/callback": Google + email-link landing
+│   ├── reset-password.tsx  # "/reset-password": set a new password
 │   ├── onboarding.tsx      # "/onboarding"  (S1)
 │   ├── home.tsx            # "/home"        (S2)
 │   ├── write.tsx           # "/write"       (S3)
@@ -44,20 +47,21 @@ src/
 │   ├── patterns/           # Patterns-only pieces: StatCell, RhythmChart
 │   ├── settings/           # Settings-only pieces: SettingsGroup, SettingsRow
 │   ├── orb/                # DreamOrb: animated dotted orb (Skia on native, canvas on web)
+│   ├── auth/               # Auth pieces: AuthShell, AuthField, GoogleButton, OrDivider, FormMessage
 │   ├── home/               # Home-only pieces: RecordOrb
 │   └── onboarding/         # Onboarding-only pieces
 ├── constants/              # Design tokens (theme.ts), icon registries (icons.ts, symbols.ts), symbol-meanings.ts, user.ts
 ├── hooks/                  # Custom hooks (useDreamRecorder)
 ├── lib/                    # Helpers: cn(), storage, dates, Dream Echo logic (echo.ts), search.ts, patterns.ts, reminders.ts, mock data
 │   ├── ai/                 # Mock pipeline + mock analyzer (used when Supabase isn't configured)
-│   └── backend/            # Supabase client + dreams API (real pipeline)
-├── providers/              # React context providers (DreamsProvider, ProfileProvider)
+│   └── backend/            # Supabase client, auth (email/password, Google), dreams API (real pipeline)
+├── providers/              # React context providers (AuthProvider, ProfileProvider, DreamsProvider)
 ├── types/                  # Dream types, *.svg module declaration
 └── global.css              # Tailwind directives
 
 supabase/                   # Backend (see docs/BACKEND.md)
 ├── migrations/             # dreams table, RLS, private storage buckets
-└── functions/              # Edge Functions (Deno): process-dream, transcribe, _shared (Gemini, Deepgram)
+└── functions/              # Edge Functions (Deno): process-dream, transcribe, speak (agent voice), _shared (Gemini, Deepgram)
 ```
 
 | Next.js           | Expo Router        |
@@ -76,7 +80,7 @@ Use Tailwind classes through `className` on React Native components. Design toke
 
 ## Backend
 
-Supabase (Postgres, Storage, anonymous Auth, Edge Functions) with **Gemini** for dream analysis and artwork and **Deepgram** for speech-to-text and text-to-speech. Setup and architecture: [`docs/BACKEND.md`](./docs/BACKEND.md). Without a `.env`, the app runs on local sample data with a mock AI.
+Supabase (Auth with email + password and Google, Postgres with RLS, Storage, Edge Functions) with **Gemini** for dream analysis and artwork and **Deepgram** for speech-to-text and text-to-speech. Setup and architecture: [`docs/BACKEND.md`](./docs/BACKEND.md). Without a `.env`, the app runs on local sample data with a mock AI.
 
 ## Credits
 

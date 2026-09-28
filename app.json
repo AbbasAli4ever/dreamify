@@ -39,7 +39,8 @@
           "microphonePermission": "Allow $(PRODUCT_NAME) to use your microphone so you can speak your dreams."
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,

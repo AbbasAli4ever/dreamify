@@ -195,6 +195,14 @@ export function makeQuestion(symbols: SymbolRef[]) {
   return q ?? 'What part of this dream is still *with you* now that you are awake?';
 }
 
+/** Demo-mode stand-in for the agent's spoken reply (text only; no TTS without the backend). */
+export function makeReply(symbols: SymbolRef[], emotions: EmotionTag[]) {
+  const [a, b] = symbols.filter((s) => s.key !== 'star');
+  const images = a && b ? `${a.label.toLowerCase()} and ${b.label.toLowerCase()}` : a ? a.label.toLowerCase() : 'that';
+  const feeling = emotions[0]?.label.toLowerCase() ?? 'wonder';
+  return `Mm... ${images}, and a quiet sense of ${feeling} running through it all. Let me paint this for you, and gather what it might be telling you.`;
+}
+
 export function paint(symbols: SymbolRef[], text: string) {
   const n = symbols.map((s) => ARTWORK_FOR_SYMBOL[s.key]).find(Boolean) ?? (hash(text) % 8) + 1;
   return ARTWORKS[n];

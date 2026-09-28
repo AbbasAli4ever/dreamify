@@ -5,6 +5,7 @@ import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import { supabase } from '@/lib/backend/supabase';
+import { splitReply } from '@/lib/reply';
 import type { Dream } from '@/types/dream';
 
 type DreamRow = {
@@ -29,6 +30,7 @@ type DreamRow = {
   answer_text: string | null;
   answer_audio_path: string | null;
   answered_at: string | null;
+  reply_text: string | null;
 };
 
 const URL_TTL = 60 * 60 * 24 * 7; // signed URLs last a week
@@ -71,6 +73,7 @@ async function toDreams(rows: DreamRow[]): Promise<Dream[]> {
       error: r.error ?? undefined,
       transcript: r.transcript,
       audioUri: r.audio_path ? audio.get(r.audio_path) : undefined,
+      reply: r.reply_text === null ? undefined : { text: r.reply_text },
       title: r.title ?? undefined,
       interpretation: r.interpretation ?? undefined,
       emotions: r.emotions ?? [],
@@ -174,6 +177,23 @@ export async function saveReflection(
     })
     .eq('id', id);
   if (error) throw error;
+}
+
+/**
+ * The agent's reply as audio sources, one per part (sentence group, see lib/reply.ts):
+ * the `speak` function voices each with Deepgram on demand. Sent with the user's JWT,
+ * so only the owner can play them.
+ */
+export async function replyAudioSources(id: string, text: string) {
+  const { data } = await db().auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return null;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    apikey: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '',
+  };
+  const base = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/speak?dream=${encodeURIComponent(id)}`;
+  return splitReply(text).map((_, part) => ({ uri: `${base}&part=${part}`, headers }));
 }
 
 /** Deepgram speech-to-text for a local voice note (via the `transcribe` function). */

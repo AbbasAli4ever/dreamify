@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 
 import { authStorage } from '@/lib/backend/auth-storage';
+import '@/lib/backend/crypto-polyfill';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -18,6 +19,9 @@ export const supabase: SupabaseClient | null = backendEnabled
         storage: authStorage,
         autoRefreshToken: true,
         persistSession: true,
+        // PKCE: OAuth and email links come back with a one-time `code` that the
+        // /auth/callback route exchanges for a session (see lib/backend/auth.ts).
+        flowType: 'pkce',
         detectSessionInUrl: false,
       },
     })
@@ -29,14 +33,4 @@ if (supabase && Platform.OS !== 'web') {
     if (state === 'active') supabase.auth.startAutoRefresh();
     else supabase.auth.stopAutoRefresh();
   });
-}
-
-/** Signs in anonymously on first launch; later launches reuse the saved session. */
-export async function ensureSession() {
-  if (!supabase) return null;
-  const { data } = await supabase.auth.getSession();
-  if (data.session) return data.session.user;
-  const { data: signedIn, error } = await supabase.auth.signInAnonymously();
-  if (error) throw error;
-  return signedIn.user;
 }

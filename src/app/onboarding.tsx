@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, useWindowDimensions, View } from 'react-native';
 import Animated, {
@@ -19,7 +19,7 @@ import {
 import { PageDots } from '@/components/onboarding/page-dots';
 import { PillButton } from '@/components/ui/pill-button';
 import { Label } from '@/components/ui/typography';
-import { setOnboarded } from '@/lib/storage';
+import { useAuth } from '@/providers/auth-provider';
 
 // S1 — docs/SCREENS.md §6.
 const SLIDES: OnboardingSlideData[] = [
@@ -49,6 +49,9 @@ export default function OnboardingScreen() {
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const progress = useSharedValue(0);
   const [index, setIndex] = useState(0);
+  const { completeOnboarding } = useAuth();
+  // `replay=1`: opened from Home's "Take the walkthrough" link by a returning user.
+  const replay = useLocalSearchParams<{ replay?: string }>().replay === '1';
 
   const isLast = index === SLIDES.length - 1;
   const visualHeight = height * 0.44;
@@ -65,7 +68,14 @@ export default function OnboardingScreen() {
   );
 
   async function finish() {
-    await setOnboarded(true);
+    if (replay) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/home');
+      return;
+    }
+    // First time: saved on the account, so onboarding shows once per user, on any device.
+    // The flag is set locally first, so Home is open even if saving it fails offline.
+    await completeOnboarding().catch(() => {});
     router.replace('/home');
   }
 
@@ -123,7 +133,7 @@ export default function OnboardingScreen() {
 
       <View className="gap-7 px-6 pt-8" style={{ paddingBottom: insets.bottom + 16 }}>
         <PageDots count={SLIDES.length} progress={progress} />
-        <PillButton label={isLast ? 'Begin' : 'Continue'} onPress={next} />
+        <PillButton label={isLast ? (replay ? 'Done' : 'Begin') : 'Continue'} onPress={next} />
       </View>
     </View>
   );

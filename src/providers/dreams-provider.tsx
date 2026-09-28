@@ -9,11 +9,14 @@ import {
   type ReactNode,
 } from 'react';
 
+import { Platform } from 'react-native';
+
 import { processDream as mockProcess } from '@/lib/ai/process-dream';
 import * as api from '@/lib/backend/dreams-api';
-import { backendEnabled, ensureSession, supabase } from '@/lib/backend/supabase';
+import { backendEnabled } from '@/lib/backend/supabase';
 import { latestEcho, sortNewest } from '@/lib/echo';
 import { MOCK_DREAMS } from '@/lib/mock/dreams';
+import { useAuth } from '@/providers/auth-provider';
 import type { Dream, DreamEcho } from '@/types/dream';
 
 export type NewDream = { inputType: 'voice' | 'text'; transcript?: string; audioUri?: string };
@@ -38,12 +41,23 @@ type DreamsContextValue = {
   startProcessing: (dream: Dream) => void;
   /** Speech-to-text for a voice note; null when there's no backend. */
   transcribeVoiceNote: (uri: string) => Promise<string | null>;
-  /** Clears local data and the Supabase session (Sign out). */
-  signOut: () => Promise<void>;
+  /** Audio for a dream's spoken reply, one source per part (native + backend only; else null). */
+  replyAudio: (
+    id: string,
+    text: string,
+  ) => Promise<{ uri: string; headers: Record<string, string> }[] | null>;
+  /** Reloads the signed-in user's dreams from Supabase. */
+  refresh: () => Promise<void>;
 };
+
+/** Dreams tagged with the account they belong to, so a sign-out never shows the last user's data. */
+type Store = { owner: string | null; dreams: Dream[]; error: string | null };
 
 const DreamsContext = createContext<DreamsContextValue | null>(null);
 
+/** Poll fast at first (the spoken reply is on its way), then relax. */
+const POLL_FAST_MS = 700;
+const POLL_FAST_FOR_MS = 20000;
 const POLL_MS = 1500;
 const POLL_TIMEOUT_MS = 3 * 60 * 1000;
 const SAMPLES = MOCK_DREAMS.map((d) => ({ ...d, sample: true }));
@@ -53,50 +67,59 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 // Single source of dream data (docs/SCREENS.md §4). Screens never talk to Supabase directly.
+// With Supabase, the dreams are the signed-in user's own (Postgres RLS enforces it server-side).
 export function DreamsProvider({ children }: { children: ReactNode }) {
-  const [raw, setDreams] = useState<Dream[]>(
-    backendEnabled ? (SHOW_SAMPLES ? SAMPLES : []) : MOCK_DREAMS,
-  );
-  const [loading, setLoading] = useState(backendEnabled);
-  const [syncError, setSyncError] = useState<string | null>(null);
+  const { user } = useAuth();
+  // Demo mode has a single local owner (null).
+  const owner = backendEnabled ? (user?.id ?? null) : null;
+  const [store, setStore] = useState<Store>({
+    owner: null,
+    dreams: backendEnabled ? [] : MOCK_DREAMS,
+    error: null,
+  });
   const running = useRef(new Set<string>());
+
+  const current = store.owner === owner;
+  const syncError = current ? store.error : null;
+  const loading = backendEnabled && !!owner && !current;
+
+  const setDreams = useCallback(
+    (update: (prev: Dream[]) => Dream[]) =>
+      setStore((s) => ({ ...s, dreams: update(s.dreams) })),
+    [],
+  );
 
   const patch = useCallback(
     (id: string, p: Partial<Dream>) =>
       setDreams((prev) => prev.map((d) => (d.id === id ? { ...d, ...p } : d))),
-    [],
+    [setDreams],
   );
 
-  /** Signs in (anonymously if needed) and fetches the user's dreams from Supabase. */
-  const fetchRemote = useCallback(async () => {
-    await ensureSession();
-    const remote = await api.fetchDreams();
-    return SHOW_SAMPLES ? [...remote, ...SAMPLES] : remote;
-  }, []);
-
-  const applyRemote = useCallback((promise: Promise<Dream[]>) => {
-    promise
-      .then((list) => {
-        setDreams(list);
-        setSyncError(null);
-      })
-      .catch((e) => setSyncError(message(e)))
-      .finally(() => setLoading(false));
+  /** Fetches the user's dreams; errors are kept so Home can show them. */
+  const load = useCallback(async (uid: string) => {
+    try {
+      const remote = await api.fetchDreams();
+      setStore({ owner: uid, dreams: SHOW_SAMPLES ? [...remote, ...SAMPLES] : remote, error: null });
+    } catch (e) {
+      setStore((s) =>
+        s.owner === uid ? { ...s, error: message(e) } : { owner: uid, dreams: [], error: message(e) },
+      );
+    }
   }, []);
 
   useEffect(() => {
-    if (backendEnabled) applyRemote(fetchRemote());
-  }, [applyRemote, fetchRemote]);
+    if (owner) load(owner);
+  }, [owner, load]);
 
   const value = useMemo<DreamsContextValue>(() => {
-    const dreams = sortNewest(raw);
+    const dreams = current ? sortNewest(store.dreams) : [];
     const find = (id: string) => dreams.find((d) => d.id === id);
     const isLocal = (d?: Dream) => !backendEnabled || !!d?.sample;
 
     async function pollUntilDone(id: string) {
       const started = Date.now();
       while (Date.now() - started < POLL_TIMEOUT_MS) {
-        await wait(POLL_MS);
+        await wait(Date.now() - started < POLL_FAST_FOR_MS ? POLL_FAST_MS : POLL_MS);
         const fresh = await api.fetchDream(id).catch(() => null);
         if (!fresh) continue;
         setDreams((prev) => prev.map((d) => (d.id === id ? fresh : d)));
@@ -132,7 +155,6 @@ export function DreamsProvider({ children }: { children: ReactNode }) {
           ]);
           return id;
         }
-        await ensureSession();
         const created = await api.createDream(input);
         setDreams((prev) => [created, ...prev]);
         return created.id;
@@ -175,16 +197,17 @@ export function DreamsProvider({ children }: { children: ReactNode }) {
 
       transcribeVoiceNote: async (uri) => (backendEnabled ? api.transcribeVoiceNote(uri) : null),
 
-      signOut: async () => {
-        if (supabase) await supabase.auth.signOut().catch(() => {});
-        setDreams(backendEnabled ? (SHOW_SAMPLES ? SAMPLES : []) : MOCK_DREAMS);
-        if (backendEnabled) {
-          setLoading(true);
-          applyRemote(fetchRemote());
-        }
+      // Web can't send auth headers for <audio> without CORS, so the reply is shown, not spoken.
+      replyAudio: async (id, text) =>
+        backendEnabled && Platform.OS !== 'web'
+          ? api.replyAudioSources(id, text).catch(() => null)
+          : null,
+
+      refresh: async () => {
+        if (owner) await load(owner);
       },
     };
-  }, [raw, loading, syncError, patch, applyRemote, fetchRemote]);
+  }, [store.dreams, current, loading, syncError, owner, patch, setDreams, load]);
 
   return <DreamsContext value={value}>{children}</DreamsContext>;
 }

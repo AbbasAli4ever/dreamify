@@ -14,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { DreamOrb } from '@/components/orb/dream-orb';
+import type { OrbState } from '@/components/orb/use-orb-animation';
 import { Glow } from '@/components/ui/glow';
 import { Icon } from '@/components/ui/icon';
 import { colors } from '@/constants/theme';
@@ -59,16 +60,26 @@ function Ripple({ delay, morph }: { delay: number; morph: SharedValue<number> })
 }
 
 type RecordOrbProps = {
-  /** true while recording: shows the orb; false: shows the mic button. */
+  /** true while recording or while the agent answers: shows the orb; false: the mic button. */
   active: boolean;
-  /** Live mic level 0–1, drives the orb. */
+  /** Live level 0–1 (your voice, or the agent's), drives the orb. */
   level: SharedValue<number>;
+  /** Orb shape: `listening` while you speak, others while the agent thinks and talks. */
+  state?: OrbState;
+  /** Screen-reader name for the orb. */
+  label?: string;
   onPress: () => void;
 };
 
 // Home's record control. Idle: the white mic button with ripples. Active: the
 // button morphs into the animated DreamOrb, which reacts to the voice level.
-export function RecordOrb({ active, level, onPress }: RecordOrbProps) {
+export function RecordOrb({
+  active,
+  level,
+  state = 'listening',
+  label = 'Listening',
+  onPress,
+}: RecordOrbProps) {
   const morph = useSharedValue(0); // 0 = button, 1 = orb
   const pressed = useSharedValue(1);
   // Keep the orb mounted while it morphs back, then unmount it so an idle Home costs nothing.
@@ -100,7 +111,7 @@ export function RecordOrb({ active, level, onPress }: RecordOrbProps) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={active ? 'Listening' : 'Record a dream'}
+      accessibilityLabel={active ? label : 'Record a dream'}
       disabled={active}
       onPressIn={() => pressed.set(withSpring(0.94))}
       onPressOut={() => pressed.set(withSpring(1))}
@@ -113,7 +124,7 @@ export function RecordOrb({ active, level, onPress }: RecordOrbProps) {
 
         {orbMounted ? (
           <Animated.View pointerEvents="none" style={[{ position: 'absolute' }, orbStyle]}>
-            <DreamOrb state="listening" size={ORB} level={level} accessibilityLabel="Listening" />
+            <DreamOrb state={state} size={ORB} level={level} accessibilityLabel={label} />
           </Animated.View>
         ) : null}
 

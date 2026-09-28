@@ -26,6 +26,12 @@ export type Dream = {
   /** Sample dreams are local-only and never sent to the backend. */
   sample?: boolean;
 
+  /**
+   * The agent's short spoken reaction to a voice dream (Gemini), voiced on Home by
+   * Deepgram TTS through the `speak` function. undefined = not ready yet; '' = none (the dream carries on).
+   */
+  reply?: { text: string };
+
   // AI outputs
   title?: string;
   summary?: string;

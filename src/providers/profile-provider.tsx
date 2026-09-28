@@ -1,41 +1,41 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ImageSource } from 'expo-image';
 import { createContext, use, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { USER } from '@/constants/user';
+import { useAuth } from '@/providers/auth-provider';
 
 export type Reminder = { enabled: boolean; hour: number; minute: number };
 
-type Profile = {
+type ProfileContextValue = {
+  /** First name, used in greetings. */
   name: string;
-  avatar: number;
+  /** Google photo, the demo photo, or undefined (initials). */
+  avatar?: ImageSource | number;
   reminder: Reminder;
-};
-
-type ProfileContextValue = Profile & {
   setName: (name: string) => void;
   setReminder: (reminder: Reminder) => void;
-  /** Back to defaults (used by Sign out until real auth exists). */
+  /** Turns the reminder back to its default (on sign out). */
   reset: () => void;
 };
 
 const KEY = 'dreamify.profile';
-const DEFAULTS: Profile = {
-  name: USER.name,
-  avatar: USER.avatar,
-  reminder: { enabled: false, hour: 7, minute: 0 },
-};
+const DEFAULT_REMINDER: Reminder = { enabled: false, hour: 7, minute: 0 };
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
-// The user's name and preferences, saved on the device. Supabase auth replaces this later.
+// Name and photo come from the signed-in account (AuthProvider). The morning
+// reminder is a notification on this phone, so it stays on the device.
 export function ProfileProvider({ children }: { children: ReactNode }) {
-  const [profile, setProfile] = useState<Profile>(DEFAULTS);
+  const { user, backend, setName } = useAuth();
+  const [reminder, setReminderState] = useState<Reminder>(DEFAULT_REMINDER);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(KEY)
       .then((raw) => {
-        if (raw) setProfile((p) => ({ ...p, ...JSON.parse(raw), avatar: USER.avatar }));
+        const saved = raw ? JSON.parse(raw) : null;
+        if (saved?.reminder) setReminderState(saved.reminder);
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -43,18 +43,21 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loaded) return;
-    const { name, reminder } = profile;
-    AsyncStorage.setItem(KEY, JSON.stringify({ name, reminder })).catch(() => {});
-  }, [profile, loaded]);
+    AsyncStorage.setItem(KEY, JSON.stringify({ reminder })).catch(() => {});
+  }, [reminder, loaded]);
 
   const value = useMemo<ProfileContextValue>(
     () => ({
-      ...profile,
-      setName: (name) => setProfile((p) => ({ ...p, name: name.trim() || DEFAULTS.name })),
-      setReminder: (reminder) => setProfile((p) => ({ ...p, reminder })),
-      reset: () => setProfile(DEFAULTS),
+      name: user?.name ?? '',
+      avatar: backend ? (user?.avatarUrl ? { uri: user.avatarUrl } : undefined) : USER.avatar,
+      reminder,
+      setName: (name) => {
+        setName(name).catch(() => {});
+      },
+      setReminder: setReminderState,
+      reset: () => setReminderState(DEFAULT_REMINDER),
     }),
-    [profile],
+    [user, backend, reminder, setName],
   );
 
   return <ProfileContext value={value}>{children}</ProfileContext>;
