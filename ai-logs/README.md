@@ -15,4 +15,4 @@ Every AI-assisted session used to build this project is logged here as a Markdow
 
 | Date       | File                                                               | Topic                                                    |
 | ---------- | ------------------------------------------------------------------ | -------------------------------------------------------- |
-| 2026-09-27 | [2026-09-27-01-project-setup.md](./2026-09-27-01-project-setup.md) | Expo + NativeWind scaffold, Next.js-style folder layout  |
+| 2026-09-27 | [2026-09-27-01-project-setup.md](./2026-09-27-01-project-setup.md) | Expo + NativeWind scaffold, Next.js-style layout, screen spec from reference design |

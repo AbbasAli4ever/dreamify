@@ -42,6 +42,12 @@ Docs: https://docs.expo.dev/eas/index.md
 
 ## Project conventions
 
-- **Styling:** NativeWind v4 (Tailwind v3). Style with `className`, not `StyleSheet`. Merge classes with `cn()` from `@/lib/utils`. Add theme colors in `tailwind.config.js`.
+- **Styling:** NativeWind v4 (Tailwind v3). Style with `className`, not `StyleSheet`. Merge classes with `cn()` from `@/lib/utils`. Design tokens live in `tailwind.config.js` (mirrored in `src/constants/theme.ts`). When adding a custom font-size or font-family token, also register it in the `extendTailwindMerge` config in `src/lib/utils.ts`, or `cn()` will drop it.
+- **Reanimated views:** `className` is not applied to Reanimated `Animated.View`s. Put animated styles on the `Animated.View` via `style` and layout classes on an inner `View`.
+- **Worklet callbacks:** never navigate or schedule timers from a Reanimated animation callback (`withTiming(..., cb)`). It runs on the UI thread, where globals like `setTimeout` belong to the UI runtime; passing them to `scheduleOnRN` throws, and an error on the UI thread aborts the app on native (web won't show it, since everything runs on one thread there). Schedule follow-ups with a plain JS `setTimeout` instead.
+- **Skia animation:** pass per-frame `SkPicture`s to `<Picture>` through a shared value, not React state, so the component doesn't re-render every frame.
+- **Verify native behaviour on the iOS simulator** (Expo Go), not only the web export.
+- **Design spec:** build screens from `docs/SCREENS.md` and tick its checklists when done.
 - **Structure:** Next.js-style. Only routes go in `src/app/`; shared UI goes in `src/components/{ui,layout}`, helpers in `src/lib`.
 - **AI logs (assignment requirement):** every AI session must be saved as a Markdown file in `ai-logs/` (`YYYY-MM-DD-NN-topic.md`) and listed in `ai-logs/README.md`. Remind the user to run `/export` at the end of each session.
+- **Backend:** Supabase + Gemini + Deepgram, documented in `docs/BACKEND.md`. Screens only use `useDreams()`; Supabase calls live in `src/lib/backend/`. Edge Functions in `supabase/functions` are Deno: check them with `npx deno check` / `npx deno lint` (they're excluded from the app's tsc and ESLint). AI keys are Supabase secrets only; never put them in `EXPO_PUBLIC_*` vars, code or logs.
