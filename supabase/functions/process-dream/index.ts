@@ -10,12 +10,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { transcribeAudio, speak } from '../_shared/deepgram.ts';
 import { analyzeDream, paintDream, replyToDream } from '../_shared/gemini.ts';
+import { shareDream } from '../_shared/kindred.ts';
 
 type Admin = SupabaseClient;
 
 type DreamRow = {
   id: string;
   user_id: string;
+  created_at: string;
   status: string;
   input_type: 'voice' | 'text';
   transcript: string;
@@ -82,10 +84,10 @@ async function run(admin: Admin, dream: DreamRow) {
       processing_stage: 3,
     });
 
-    // 4. Paint the dream and voice the question in parallel. Neither is fatal:
-    // a dream without art or audio is still a dream.
+    // 4. Paint the dream, voice the question and share its anonymous overview with Kindred
+    // dreamers, in parallel. None is fatal: a dream without art or audio is still a dream.
     const folder = dream.user_id;
-    const [art, voice] = await Promise.allSettled([
+    const [art, voice, shared] = await Promise.allSettled([
       paintDream(a.art_prompt).then(async ({ bytes, mimeType }) => {
         const path = `${folder}/${dream.id}.${EXT[mimeType] ?? 'png'}`;
         const { error } = await admin.storage
@@ -102,9 +104,22 @@ async function run(admin: Admin, dream: DreamRow) {
         if (error) throw new Error(error.message);
         return path;
       }),
+      a.gist
+        ? shareDream(admin, {
+            dream_id: dream.id,
+            user_id: dream.user_id,
+            dreamt_at: dream.created_at,
+            gist: a.gist,
+            symbols: a.symbols,
+            emotions: a.emotions,
+            color: a.color,
+          })
+        : Promise.reject(new Error('no gist')),
     ]);
 
     await replying;
+    // Kindred is a bonus: a failed share is logged, not shown on the dream.
+    if (shared.status === 'rejected') console.error('kindred share failed', dream.id, String(shared.reason));
     const problems = [art, voice]
       .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
       .map((r) => String(r.reason?.message ?? r.reason));
@@ -151,7 +166,7 @@ export default {
     // RLS-scoped read: a user can only process their own dream.
     const { data: dream, error } = await ctx.supabase
       .from('dreams')
-      .select('id, user_id, status, input_type, transcript, audio_path, reply_text')
+      .select('id, user_id, created_at, status, input_type, transcript, audio_path, reply_text')
       .eq('id', dream_id)
       .single();
     if (error || !dream) return Response.json({ error: 'Dream not found' }, { status: 404 });

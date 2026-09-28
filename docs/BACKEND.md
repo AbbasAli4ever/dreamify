@@ -37,6 +37,32 @@ Files:
 - [`supabase/migrations/…_init_dreams.sql`](../supabase/migrations): the `dreams` table, row-level security, private `dream-audio` and `dream-art` buckets.
 - [`supabase/functions/process-dream`](../supabase/functions/process-dream/index.ts), [`transcribe`](../supabase/functions/transcribe/index.ts), [`speak`](../supabase/functions/speak/index.ts) (voices one part of the reply; RLS-checked, 401 without a JWT, 404 for someone else's dream), shared [`reply.ts`](../supabase/functions/_shared/reply.ts) (sentence split, mirrored in `src/lib/reply.ts`), [`gemini.ts`](../supabase/functions/_shared/gemini.ts) / [`deepgram.ts`](../supabase/functions/_shared/deepgram.ts).
 - App side: [`src/lib/backend/`](../src/lib/backend) (client, data access) and [`src/providers/dreams-provider.tsx`](../src/providers/dreams-provider.tsx).
+- Kindred dreamers: [`…_kindred.sql`](../supabase/migrations/20260929120000_kindred.sql), [`functions/kindred`](../supabase/functions/kindred/index.ts), [`_shared/kindred.ts`](../supabase/functions/_shared/kindred.ts); app side [`kindred-api.ts`](../src/lib/backend/kindred-api.ts), [`use-kindred.ts`](../src/hooks/use-kindred.ts).
+
+## Kindred dreamers (people who dreamt alike)
+
+```text
+process-dream (step 3, in parallel with the art) ─▶ Gemini writes `gist`: one anonymous line
+                                                   ─▶ gemini-embedding-001 (768 dims) of gist + symbols + feelings
+                                                   → public.dream_shares (service role only)
+app, once per session ─▶ kindred (Edge Function): shares older dreams that have no row yet
+                         (Gemini lite writes their gist), 8 per call
+app ─▶ rpc kindred_for_dream(dream)  ─▶ other people's dreams within ±10 days, one per person
+app ─▶ rpc kindred_web()             ─▶ the same for every dream of the last 60 days (the circle)
+app ─▶ rpc dream_pulse(dream)        ─▶ how many dreamers around that night had each symbol
+```
+
+- **Privacy by construction.** `dream_shares` has RLS on and *no* policies, so no client can read it. The three RPCs are `security definer`, check that the caller owns the dream, and return only: an opaque person id (`md5` of the user id), first name (`display_name`/Google name, never the email), photo URL, the gist, symbol keys, shared feelings, colour, days apart and the match %. Transcript, title, artwork and audio are never exposed.
+- **Opt-out, both ways.** `user_metadata.share_dreams = false` (Settings switch) removes you from everyone's results and returns nothing to you.
+- **Score** (0–1): `0.55 × vibe + 0.35 × shared symbols + 0.10 × shared feelings`, where vibe = `clamp((cosine − 0.70) / 0.18)` (measured: unrelated dreams ≈ 0.70 cosine, alike ones ≈ 0.80) and symbols/feelings = shared ÷ the smaller set. Shown as `40 + 60 × score` %, only from a score of 0.2 (52%). Without an embedding, symbols and feelings carry the score.
+- Not fatal anywhere: a failed gist or embedding is logged and the dream is still ready.
+
+**Deploy** (after pulling this change):
+```bash
+npx supabase db push                                   # creates dream_shares + the RPCs (enables pgvector)
+npx supabase functions deploy process-dream kindred --use-api
+```
+Optional secret: `GEMINI_EMBED_MODEL` (default `gemini-embedding-001`; the score thresholds are calibrated for it).
 
 ## Accounts (Supabase Auth)
 

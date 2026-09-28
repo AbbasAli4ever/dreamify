@@ -12,6 +12,10 @@ const TEXT_MODEL = () => Deno.env.get('GEMINI_TEXT_MODEL') ?? 'gemini-3.8-flash'
 const REPLY_MODEL = () => Deno.env.get('GEMINI_REPLY_MODEL') ?? 'gemini-3.1-flash-lite';
 const REPLY_THINKING = () => Deno.env.get('GEMINI_REPLY_THINKING') ?? 'minimal';
 const IMAGE_MODEL = () => Deno.env.get('GEMINI_IMAGE_MODEL') ?? 'gemini-3.1-flash-image';
+// Kindred dreamers: 768-dim embeddings of each dream's anonymous overview (the SQL scoring in
+// the kindred migration is calibrated for this model, so change both together).
+const EMBED_MODEL = () => Deno.env.get('GEMINI_EMBED_MODEL') ?? 'gemini-embedding-001';
+export const EMBED_DIMS = 768;
 
 function apiKey() {
   const key = Deno.env.get('GEMINI_API_KEY');
@@ -45,7 +49,12 @@ export type DreamAnalysis = {
   question: string;
   art_prompt: string;
   color: string;
+  gist: string;
 };
+
+// Shown to *other* people whose dreams were alike (Kindred dreamers), so it must never
+// identify the dreamer or anyone in the dream.
+const GIST_RULE = `an anonymous overview of the dream for strangers who had a similar dream: ONE sentence of 10–22 words with the core image and the feeling, as a fragment without "I" or "you" (e.g. "Walking through warm rain on an empty street at night, calm but a little lonely."). Never include names, places, jobs, relationships that identify someone (use "someone", "a friend", "family"), health details, or anything private.`;
 
 const SYSTEM = `You are the quiet, perceptive voice inside Dreamify, a dream journal.
 You read one dream the person just woke up from and help them understand it gently.
@@ -59,7 +68,8 @@ Rules:
 - Interpretation: 2–4 sentences, grounded in concrete details of this dream. Offer possibilities, not verdicts. If a symbol also appears in the person's earlier dreams, you may gently note that it keeps returning.
 - Question: ONE reflective question that references a concrete detail of the dream. Wrap the 1–2 most important words in *asterisks* for emphasis, e.g. "The house felt *familiar*. Does it remind you of somewhere from your *childhood*?"
 - art_prompt: one vivid sentence describing a single surreal, calm scene from the dream for an illustrator. No text in the image, faces small or hidden.
-- color: the dominant hex color of that scene, muted and dreamy (e.g. "#6FA2F2").`;
+- color: the dominant hex color of that scene, muted and dreamy (e.g. "#6FA2F2").
+- gist: ${GIST_RULE}`;
 
 const SCHEMA = {
   type: 'object',
@@ -82,8 +92,9 @@ const SCHEMA = {
     question: { type: 'string' },
     art_prompt: { type: 'string' },
     color: { type: 'string' },
+    gist: { type: 'string' },
   },
-  required: ['title', 'emotions', 'symbols', 'themes', 'interpretation', 'question', 'art_prompt', 'color'],
+  required: ['title', 'emotions', 'symbols', 'themes', 'interpretation', 'question', 'art_prompt', 'color', 'gist'],
 };
 
 export async function analyzeDream(
@@ -129,7 +140,68 @@ export async function analyzeDream(
     question: (raw.question ?? 'What part of this dream is still *with you* now that you are awake?').trim(),
     art_prompt: (raw.art_prompt ?? transcript).trim(),
     color: /^#[0-9a-f]{6}$/i.test(raw.color ?? '') ? raw.color : '#6F82C9',
+    gist: cleanGist(raw.gist),
   };
+}
+
+const cleanGist = (s?: string) => (s ?? '').replace(/[*_#`"]/g, '').replace(/\s+/g, ' ').trim().slice(0, 200);
+
+// ---------- Kindred dreamers ----------
+
+/**
+ * The anonymous overview for a dream analysed before Kindred existed (its analysis has no
+ * gist). Uses the fast reply model: one short sentence needs no depth.
+ */
+export async function gistDream(dream: {
+  transcript: string;
+  title: string | null;
+  emotions: { label: string }[];
+}): Promise<string> {
+  const body = (thinking: string | null) => ({
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          {
+            text: `Write ${GIST_RULE}\nReply with the sentence only.\n\nThe dream${dream.title ? ` ("${dream.title}")` : ''}:\n"""\n${dream.transcript}\n"""\nFelt: ${dream.emotions.map((e) => e.label).join(', ') || 'unknown'}`,
+          },
+        ],
+      },
+    ],
+    generationConfig: { temperature: 0.4, ...(thinking ? { thinkingConfig: { thinkingLevel: thinking } } : null) },
+  });
+  let parts: Part[];
+  try {
+    parts = await generate(REPLY_MODEL(), body(REPLY_THINKING()));
+  } catch {
+    parts = await generate(TEXT_MODEL(), body(null));
+  }
+  const gist = cleanGist(
+    parts
+      .filter((p) => !('thought' in p && (p as { thought?: boolean }).thought))
+      .map((p) => p.text ?? '')
+      .join(''),
+  );
+  if (!gist) throw new Error('Gemini returned an empty gist');
+  return gist;
+}
+
+/** Embedding for similarity search (cosine), 768 dims. */
+export async function embed(text: string): Promise<number[]> {
+  const model = EMBED_MODEL();
+  const res = await fetch(`${API}/${model}:embedContent`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey() },
+    body: JSON.stringify({
+      content: { parts: [{ text }] },
+      taskType: 'SEMANTIC_SIMILARITY',
+      outputDimensionality: EMBED_DIMS,
+    }),
+  });
+  if (!res.ok) throw new Error(`Gemini ${model} ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  const values: number[] | undefined = (await res.json())?.embedding?.values;
+  if (values?.length !== EMBED_DIMS) throw new Error(`Gemini ${model}: unexpected embedding`);
+  return values;
 }
 
 // ---------- Spoken reply ----------

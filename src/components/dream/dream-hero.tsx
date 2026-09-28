@@ -3,7 +3,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
-  interpolate,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
@@ -17,7 +16,7 @@ import type { Dream } from '@/types/dream';
 type DreamHeroProps = {
   dream: Dream;
   height: number;
-  /** Page scroll offset, for parallax and pull-to-stretch. */
+  /** Page scroll offset, for the pull-down stretch. */
   scrollY: SharedValue<number>;
   dateLabel: string;
 };
@@ -30,17 +29,13 @@ export function DreamHero({ dream, height, scrollY, dateLabel }: DreamHeroProps)
     sharp.set(withTiming(1, { duration: 1200 }));
   }, [sharp]);
 
-  // Scroll up: art moves at half speed. Pull down: art stretches.
+  // Scrolling up moves the art and title together with the page (no parallax, so the
+  // text never slides over the image). Only pulling down past the top stretches the art.
   const artStyle = useAnimatedStyle(() => {
-    const y = scrollY.value;
-    return {
-      transform: [{ translateY: y < 0 ? y / 2 : y * 0.45 }, { scale: y < 0 ? 1 + -y / height : 1 }],
-    };
+    const y = Math.min(0, scrollY.value);
+    return { transform: [{ translateY: y / 2 }, { scale: 1 + -y / height }] };
   });
   const blurStyle = useAnimatedStyle(() => ({ opacity: 1 - sharp.value }));
-  const titleStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(scrollY.value, [0, height * 0.5], [1, 0], 'clamp'),
-  }));
 
   return (
     <View style={{ height }}>
@@ -73,7 +68,7 @@ export function DreamHero({ dream, height, scrollY, dateLabel }: DreamHeroProps)
         />
       </Animated.View>
 
-      <Animated.View style={[{ flex: 1, justifyContent: 'flex-end' }, titleStyle]}>
+      <View className="flex-1 justify-end">
         <View className="px-6 pb-4">
           <Meta className="text-paper/70">{dateLabel}</Meta>
           <Text
@@ -83,7 +78,7 @@ export function DreamHero({ dream, height, scrollY, dateLabel }: DreamHeroProps)
             {dream.title}
           </Text>
         </View>
-      </Animated.View>
+      </View>
     </View>
   );
 }

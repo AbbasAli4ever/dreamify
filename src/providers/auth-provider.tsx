@@ -4,6 +4,7 @@ import { createContext, use, useEffect, useMemo, useState, type ReactNode } from
 
 import { USER } from '@/constants/user';
 import * as auth from '@/lib/backend/auth';
+import { setShareDreams } from '@/lib/backend/kindred-api';
 import { backendEnabled, supabase } from '@/lib/backend/supabase';
 import { hasOnboarded, setOnboarded } from '@/lib/storage';
 
@@ -24,12 +25,15 @@ type AuthContextValue = {
   updatePassword: (password: string) => Promise<void>;
   setName: (name: string) => Promise<void>;
   completeOnboarding: () => Promise<void>;
+  /** Kindred dreamers on/off (sharing and seeing go together). */
+  setShareDreams: (on: boolean) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 type State = { status: AuthStatus; user: auth.AuthUser | null };
 
 const LOCAL_NAME_KEY = 'dreamify.localName';
+const LOCAL_SHARE_KEY = 'dreamify.shareDreams';
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -46,18 +50,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!supabase) {
-      Promise.all([hasOnboarded(), AsyncStorage.getItem(LOCAL_NAME_KEY).catch(() => null)]).then(
-        ([onboarded, name]) =>
-          setState({
-            status: 'signedIn',
-            user: {
-              id: 'local',
-              email: '',
-              name: name || USER.name,
-              provider: 'email',
-              onboarded,
-            },
-          }),
+      Promise.all([
+        hasOnboarded(),
+        AsyncStorage.getItem(LOCAL_NAME_KEY).catch(() => null),
+        AsyncStorage.getItem(LOCAL_SHARE_KEY).catch(() => null),
+      ]).then(([onboarded, name, share]) =>
+        setState({
+          status: 'signedIn',
+          user: {
+            id: 'local',
+            email: '',
+            name: name || USER.name,
+            provider: 'email',
+            onboarded,
+            shareDreams: share !== '0',
+          },
+        }),
       );
       return;
     }
@@ -106,16 +114,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         else await setOnboarded(true);
       },
 
+      setShareDreams: async (on) => {
+        patchUser({ shareDreams: on });
+        if (!backendEnabled) {
+          await AsyncStorage.setItem(LOCAL_SHARE_KEY, on ? '1' : '0').catch(() => {});
+          return;
+        }
+        try {
+          await setShareDreams(on);
+        } catch (e) {
+          patchUser({ shareDreams: !on });
+          throw e;
+        }
+      },
+
       signOut: async () => {
         if (backendEnabled) {
           await auth.signOut();
           return;
         }
         // Demo mode has no account: "signing out" resets the device to a first launch.
-        await Promise.all([setOnboarded(false), AsyncStorage.removeItem(LOCAL_NAME_KEY)]);
+        await Promise.all([
+          setOnboarded(false),
+          AsyncStorage.multiRemove([LOCAL_NAME_KEY, LOCAL_SHARE_KEY]),
+        ]);
         setState({
           status: 'signedIn',
-          user: { id: 'local', email: '', name: USER.name, provider: 'email', onboarded: false },
+          user: {
+            id: 'local',
+            email: '',
+            name: USER.name,
+            provider: 'email',
+            onboarded: false,
+            shareDreams: true,
+          },
         });
       },
     };

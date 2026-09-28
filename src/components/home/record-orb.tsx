@@ -23,6 +23,8 @@ const BUTTON = 120;
 const ORB = 210;
 const BOX = ORB * 1.45;
 const MORPH_MS = 650;
+/** Home's big orb turns slower than the engine default, so it feels calm and smooth. */
+const ORB_SPEED = 0.55;
 
 function Ripple({ delay, morph }: { delay: number; morph: SharedValue<number> }) {
   const reduceMotion = useReducedMotion();
@@ -124,7 +126,13 @@ export function RecordOrb({
 
         {orbMounted ? (
           <Animated.View pointerEvents="none" style={[{ position: 'absolute' }, orbStyle]}>
-            <DreamOrb state={state} size={ORB} level={level} accessibilityLabel={label} />
+            <DreamOrb
+              state={state}
+              size={ORB}
+              speed={ORB_SPEED}
+              level={level}
+              accessibilityLabel={label}
+            />
           </Animated.View>
         ) : null}
 

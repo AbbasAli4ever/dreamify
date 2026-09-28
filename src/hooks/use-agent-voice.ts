@@ -67,7 +67,7 @@ export function useAgentVoice() {
     let sum = 0;
     for (const f of frames) sum += f * f;
     const v = Math.min(1, Math.sqrt(sum / frames.length) * LEVEL_GAIN);
-    level.set(withTiming(v, { duration: 90 }));
+    level.set(withTiming(v, { duration: 220 }));
   };
   useAudioSampleListener(first, listen(first));
   useAudioSampleListener(second, listen(second));

@@ -25,6 +25,7 @@ import { DreamHero } from '@/components/dream/dream-hero';
 import { EchoCard } from '@/components/dream/echo-card';
 import { InsightCard } from '@/components/dream/insight-card';
 import { InsightSheet } from '@/components/dream/insight-sheet';
+import { KindredSection } from '@/components/kindred/kindred-section';
 import { SymbolTile } from '@/components/dream/symbol-tile';
 import { BOTTOM_BAR_HEIGHT, BottomActionBar } from '@/components/layout/bottom-action-bar';
 import { ComingSoon } from '@/components/layout/coming-soon';
@@ -218,6 +219,9 @@ export default function DreamScreen() {
                 </View>,
               )
             : null}
+
+          {/* Kindred dreamers: other people whose dreams were alike */}
+          {dream.status === 'ready' ? reveal(<KindredSection dream={dream} />) : null}
 
           {/* Reflection */}
           {dream.reflection?.question

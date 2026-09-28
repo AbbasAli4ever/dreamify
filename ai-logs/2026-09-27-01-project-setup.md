@@ -621,6 +621,46 @@ Onboarding is now reachable by any signed-in user (guard `signedIn`; `index` sti
 
 Reproduced on the simulator via Home's `?record=1`: iOS failed in `prepareToRecordAsync` ("Failed to prepare recorder"). Ruled out the new code (still failed with the agent-voice sample listeners off, and with the whole voice hook stubbed out) and the Mac mic (MacBook Pro Microphone is the default input); re-granting the simulator mic permission didn't help. Restarting the simulator fixed it: the simulator's audio input had got stuck (likely after the network/audio change). Not an app bug; the network change affects Metro/saving, not recording. Temporary diagnostics removed.
 
+## Prompt 47 (user)
+
+> [screenshot: Dream Reveal "Along the Edge of Water"] So here the scrolling effect is like this the image is scrolling like slow and the text is scrolling like fast so we have to make it fix like the whole section scroll statically like the text not scroll up on image like it becomes fixed and create a static scroll of the entire page so we have to do this
+
+## Response 47 (AI): summary
+
+`DreamHero` had parallax (art at 0.45× scroll speed) and a title fade. Removed both: the art and title now scroll with the page as one block; only the pull-down stretch past the top remains. Verified in a demo-mode web build: after a 250 px scroll the image and title both moved exactly 250 px. tsc + lint pass; SCREENS.md checklist note updated.
+
+## Prompt 48 (user)
+
+> Now we have to fix the speed of the animation of the orb that came when we click on the mic button in the home screen. So we have to make it slower than this, make it smooth like it is too fast now.
+
+## Response 48 (AI): summary
+
+Slowed and smoothed Home's orb: `RecordOrb` passes `speed={0.55}` to `DreamOrb`; the voice speed boost went from ×3 to ×1.2 (`LEVEL_SPEED_BOOST`); the recorder's level easing went from 120 ms to 280 ms and the agent voice's from 90 ms to 220 ms. Net effect at a normal voice level: about 2.5× → 0.9× the engine's base speed. Other orbs (Processing screen, art tiles) are unchanged. tsc + lint pass.
+
+## Prompt 49 (user)
+
+> So now there is one thing and we have to add on a very important feature in our app like it's cherry on the top this thing this thing is the university of the app like we have to integrate a feature like we have the users of the dreamifier like this project we have to connect them on the based of their dreams.
+>
+> Someone had a dream of RAIN and some user had a dream of RAIN like 10 days before or after. So we have to connect them like we have to give them a reference connect them with the with their user like we have to show a mesh or a graph like like this user connects you with the ten days ago like we don't have to show the entire dream of that person we have to analyze and we have to just took an a point or an overview like this person's slightly seen the dream likes you so the vibe of dream matches to you and we have to show a graph of files like that connects to you and you can see the icon of the user and by clicking on it there is a pop-up like show this this person you're dream like you state the brain we have to implement this knowledge to base cloud like each user show will show and we have to describe in a we have to describe in a dream description that we we are generating and showing to the user we have to describe these references and show the icon or show the description like this people this person have seen your dream like this this this this person and we have to show the percentage like all people that are on our so we have to show all this is the insane so the people so the audience on our app will connect with each other then and connect with so so there is a streaks of doing that thing streaks of trimming like this thing we have to show it so analyze it the whole concept and categorize it and analyze what is what is the key features what are the features should be to be to this feature or this is the main feature like this is our usp like this is our apps retention and conversion like of thing that we are providing this kind of feature that the people of same remaining connect with each other.
+>
+> Like this is the distinguished part like all from the other webs. So we have to implement it. So do it and implement it in our app.
+
+## Response 49 (AI): summary
+
+Designed and built **Kindred dreamers** (feature map in SCREENS.md S11, backend in BACKEND.md):
+- **Matching** (Postgres + pgvector): Gemini now also writes an anonymous one-line `gist` per dream; `gemini-embedding-001` embeds it (tested live: alike dreams ≈ 0.80 cosine, unrelated ≈ 0.70). `kindred_for_dream` / `kindred_web` / `dream_pulse` (security definer) match other people's dreams within ±10 days by vibe + shared symbols + shared feelings, one row per person, with a match %. `dream_shares` is unreadable by clients; only first name, photo and the gist are returned. A `kindred` Edge Function shares older dreams.
+- **App:** a Kindred section in the dream description (two written lines, a mesh graph with avatars, "% of dreamers dreamt of rain", a pop-up per dreamer), a `/kindred` "dream circle" screen (mesh, stats, dream streak, list), a Home card with avatars and the streak, and a Settings switch that turns sharing off both ways.
+- Demo mode shows labelled sample dreamers. Verified in a demo-mode web build (screenshots, no console errors); tsc, lint and `deno check` pass.
+- Not done by the AI: `supabase db push` and deploying `process-dream` + `kindred` were blocked by the permission check, so the user runs them.
+
+## Prompt 50 (user)
+
+> So where is the mesh of connection visually? I told you that we have to show a Mesh like connecting the people to the user like we have to show a mesh liking with the collections and by clicking on the profile the show description of dream dream life shows and something like that we have to show it on a screen on a separate screen where someone is connecting to you like some kind of stuff some kind of visually showing that kind of thing so have you done that or
+
+## Response 50 (AI): summary
+
+Yes: the mesh is the separate `/kindred` screen (the user's photo in the centre, dreamers around it, threads between them; tap → pop-up with the dream overview). It wasn't visible because the backend wasn't deployed yet, so the app hid its entry points. Home's Kindred card now always shows (the way into the screen), and the screen explains when the backend can't be reached. Screenshots saved as `docs/screens/s11-kindred-*.jpg`. tsc + lint pass.
+
 ---
 
 ## Full transcript (`/export`)

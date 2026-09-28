@@ -33,7 +33,8 @@ export function useDreamRecorder() {
     }
     const db = state.metering ?? -160;
     const v = Math.min(1, Math.max(0, (db - QUIET_DB) / (LOUD_DB - QUIET_DB)));
-    level.set(withTiming(v, { duration: 120 }));
+    // Eased over a few metering ticks so the orb glides instead of twitching.
+    level.set(withTiming(v, { duration: 280 }));
   }, [state.metering, status, level]);
 
   async function start() {

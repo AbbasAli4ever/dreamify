@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DreamArtTile } from '@/components/dream/dream-art-tile';
 import { EchoCard } from '@/components/dream/echo-card';
 import { ProcessingBar } from '@/components/home/processing-bar';
+import { KindredCard } from '@/components/kindred/kindred-card';
 import { RecordOrb } from '@/components/home/record-orb';
 import { BOTTOM_BAR_HEIGHT, BottomActionBar } from '@/components/layout/bottom-action-bar';
 import { NightBackground } from '@/components/layout/night-background';
@@ -19,7 +20,9 @@ import { RichText } from '@/components/ui/rich-text';
 import { Body, Label, Meta, Title } from '@/components/ui/typography';
 import { useAgentVoice } from '@/hooks/use-agent-voice';
 import { useDreamRecorder } from '@/hooks/use-dream-recorder';
+import { useKindredCircle } from '@/hooks/use-kindred';
 import { formatDuration, formatLongDate, greeting } from '@/lib/dates';
+import { dreamStreak } from '@/lib/kindred';
 import { useDreams } from '@/providers/dreams-provider';
 import { useProfile } from '@/providers/profile-provider';
 import type { Dream } from '@/types/dream';
@@ -50,6 +53,7 @@ export default function HomeScreen() {
   const profile = useProfile();
   const recorder = useDreamRecorder();
   const voice = useAgentVoice();
+  const kindred = useKindredCircle();
   const scrollRef = useRef<ScrollView>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /** True from ✓ until the dream row exists. */
@@ -81,6 +85,9 @@ export default function HomeScreen() {
         ? stageUi(session).orb
         : 'listening';
   const recent = dreams.slice(0, 5);
+  const streak = dreamStreak(dreams).current;
+  // Always the way into the dream circle (S11), even before anyone has matched.
+  const showKindred = kindred.status !== 'off';
   const related = (latestEcho?.relatedDreamIds.map(getDream).filter(Boolean) ?? []) as Dream[];
 
   // "Speak instead" on the Write screen comes back here with `record=1`.
@@ -145,8 +152,7 @@ export default function HomeScreen() {
   }, [sessionId, voice.key]);
 
   // Ready and the agent is quiet: open the dream (only while Home is on screen).
-  const readyId =
-    session?.status === 'ready' && !thinking && !speaking ? session.id : null;
+  const readyId = session?.status === 'ready' && !thinking && !speaking ? session.id : null;
   useFocusEffect(
     useCallback(() => {
       if (!readyId) return;
@@ -297,6 +303,16 @@ export default function HomeScreen() {
                   onPress={() =>
                     router.push({ pathname: '/echo/[symbol]', params: { symbol: latestEcho.key } })
                   }
+                />
+              </View>
+            ) : null}
+
+            {showKindred ? (
+              <View className={latestEcho ? 'mt-4 px-6' : 'px-6'}>
+                <KindredCard
+                  people={kindred.people}
+                  streak={streak}
+                  onPress={() => router.push('/kindred')}
                 />
               </View>
             ) : null}

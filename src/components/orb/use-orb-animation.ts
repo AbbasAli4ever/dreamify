@@ -15,8 +15,8 @@ export type { OrbFrame, OrbState };
 /** The tuned design size. Frames are drawn at this size and scaled up. */
 export const PRESET_SIZE = 64;
 
-/** How much faster the orb spins at full voice level. */
-const LEVEL_SPEED_BOOST = 3;
+/** How much faster the orb spins at full voice level (gentle, so it breathes rather than races). */
+const LEVEL_SPEED_BOOST = 1.2;
 
 /** The static frame reduced-motion users see (same instant as the web package). */
 const REDUCED_MOTION_T = 0.6;

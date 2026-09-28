@@ -227,6 +227,7 @@ src/app/
 ├── processing/[id].tsx         # S4  (fade, no back gesture)
 ├── dream/[id].tsx              # S5 + S5b reflection sheet
 ├── echo/[symbol].tsx           # S6  ?from=<dreamId>
+├── kindred.tsx                 # S11 Kindred dreamers (your dream circle)
 ├── archive.tsx                 # S7  ?view=list|grid
 ├── search.tsx                  # S8  (formSheet / modal)
 ├── patterns.tsx                # S9  (optional)
@@ -248,6 +249,7 @@ src/app/
 | S4 Processing | `/processing/[id]` | stack, `gestureEnabled: false`, fade | `id` (draft dream) |
 | S5 Dream Reveal | `/dream/[id]` | stack (replaces S4 via `router.replace`) | `id`, `fresh?: '1'` |
 | S6 Dream Echo / Symbol | `/echo/[symbol]` | stack push | `symbol` key, `from?` dreamId |
+| S11 Kindred dreamers | `/kindred` | stack push | — |
 | S7 History | `/archive` | stack push | `view?`, `range?` |
 | S8 Search | `/search` | `formSheet` / modal | — |
 | S9 Patterns | `/patterns` | stack push | — |
@@ -593,7 +595,7 @@ Routes linked from Home that aren't built yet (`/record`, `/dream/[id]`, `/echo/
 **Data:** the full `Dream`.
 **States:** fresh (animated stagger-in, save step) · existing · artwork missing (gradient + large symbol icon placeholder; "Retry painting" in the ⋯ menu) · no echo (hide section 6) · answered / unanswered reflection.
 
-- [x] Artwork hero with the title overlay and blur-in (+ parallax on scroll, stretch on pull)
+- [x] Artwork hero with the title overlay and blur-in; scrolls with the page as one block (parallax and title fade removed 2026-09-29 so the text never slides over the art), stretch on pull
 - [x] Emotions, symbols, interpretation, themes sections
 - [x] Echo card
 - [x] Reflection question with `RichText` emphasis
@@ -767,6 +769,34 @@ Dropped from the reference: Devices, Language, Passcode & Face ID, Support.
 - Version from `expo-constants` at the bottom.
 **Verified:** Chrome (rename → greeting "Zaeem", persists across reload; web reminder message; About; Sign out → `/onboarding` and name back to Abbas). iOS: turning the reminder on raised the native permission prompt. **Not verified:** the scheduled notification itself (scripted taps can't press Allow).
 Screenshots: [`screens/s10-settings.jpg`](./screens/s10-settings.jpg), [`s10-settings-ios-permission.jpg`](./screens/s10-settings-ios-permission.jpg).
+
+### S11 — Kindred dreamers (the social USP)
+
+**Route:** `/kindred`, plus a section on S5, a card on S2 and a switch on S10.
+**Idea:** people who dreamt something alike within **10 days** of each other are connected, without ever seeing each other's dream. Someone dreamt of rain; 4 days later you did too, so you're kindred dreamers.
+
+Feature map:
+| Part | What the user sees | Why it matters |
+| --- | --- | --- |
+| **Matching** | Dreams matched by *vibe* (Gemini embedding of an anonymous overview), shared **symbols** and shared **feelings**, ±10 days | The core: "someone dreamt like me" |
+| **Dream description (S5)** | "*3 dreamers* saw something like this within 10 days of you." / "*Maya* dreamt of *rain* 4 days before you." | The connection is part of the insight, not a separate feed |
+| **Mesh graph** | Your dream (S5) or you (S11) in the middle; each dreamer's avatar on an orbit (closer = more alike), threads coloured by their dream; dashed = same feel, different images; faint threads between dreamers who share a symbol | The picture of your circle |
+| **Pop-up** | Tap a dreamer: avatar, first name, "Dreamt 4 days before you", **% alike**, their dream *in one anonymous line*, "You both dreamt of", "You both felt" | Curiosity without exposure |
+| **Pulse** | "*12%* of dreamers dreamt of *rain* around this night" (or "*2 of 3* dreamers" while the crowd is small) | You're part of something bigger |
+| **Circle (S11)** | Everyone from the last 60 days, stats (kindred dreamers, dreams shared, nights in a row), list closest-first | A reason to come back |
+| **Streak** | Nights in a row with a remembered dream (Home card, S11), longest streak | Daily habit → retention |
+| **Privacy** | Only first name, photo and a one-line anonymous overview are shared; never the transcript, title or art. One switch in Settings turns it off *both ways* | Trust, which dream content needs |
+
+Screens:
+- **S5 section** ([`kindred-section.tsx`](../src/components/kindred/kindred-section.tsx)): label, the two lines above, graph, up to two pulse lines, "See your dream circle ›". States: looking…, none yet ("If someone does within 10 days, they'll appear here"), off (link to Settings); hidden on error.
+- **S11** ([`src/app/kindred.tsx`](../src/app/kindred.tsx)): headline, mesh around your avatar, 3 stats, "Your circle" list, privacy note → Settings. Off state explains what is shared and has **Turn on**.
+- **S2 card** ([`kindred-card.tsx`](../src/components/kindred/kindred-card.tsx)): overlapping avatars, "*N dreamers* dreamt like you lately", "N-night dream streak". Shown when there are kindred dreamers or a streak of 2+.
+- **Pop-up** ([`kindred-sheet.tsx`](../src/components/kindred/kindred-sheet.tsx)), **graph** ([`kindred-graph.tsx`](../src/components/kindred/kindred-graph.tsx)).
+- Demo mode (no `.env`) and the local sample dreams use clearly labelled sample dreamers ([`src/lib/mock/kindred.ts`](../src/lib/mock/kindred.ts)).
+
+- [x] Section on S5, S11 screen, S2 card, pop-up, Settings switch
+- [x] Verified in a demo-mode web build (graph, pop-up, circle, Home card; no console errors)
+- [ ] Verified with real accounts (needs the migration + functions deployed, see BACKEND.md)
 
 ---
 

@@ -19,6 +19,7 @@ import { MistBackground } from '@/components/layout/mist-background';
 import { SettingsGroup, SettingsRow } from '@/components/settings/settings-row';
 import { CircleButton } from '@/components/ui/circle-button';
 import { Icon } from '@/components/ui/icon';
+import { clearKindredCache } from '@/hooks/use-kindred';
 import { formatDateTime } from '@/lib/dates';
 import { ensureReminderPermission, scheduleMorningReminder } from '@/lib/reminders';
 import { useAuth } from '@/providers/auth-provider';
@@ -53,7 +54,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const profile = useProfile();
   const { dreams } = useDreams();
-  const { user, backend, signOut: signOutAccount } = useAuth();
+  const { user, backend, signOut: signOutAccount, setShareDreams } = useAuth();
   const [editingName, setEditingName] = useState(false);
   const [draftName, setDraftName] = useState(profile.name);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -72,6 +73,12 @@ export default function SettingsScreen() {
     }
     profile.setReminder(next);
     await scheduleMorningReminder(next).catch(() => setNotice("Couldn't schedule the reminder."));
+  }
+
+  function updateSharing(on: boolean) {
+    setNotice(null);
+    clearKindredCache();
+    setShareDreams(on).catch(() => setNotice("Couldn't change Kindred dreamers. Try again."));
   }
 
   function exportDreams() {
@@ -189,7 +196,9 @@ export default function SettingsScreen() {
             {backend && user ? (
               <SettingsRow
                 icon="check"
-                label={user.provider === 'google' ? 'Signed in with Google' : 'Signed in with email'}
+                label={
+                  user.provider === 'google' ? 'Signed in with Google' : 'Signed in with email'
+                }
                 detail={user.email}
                 last={user.provider === 'google'}
               />
@@ -250,6 +259,30 @@ export default function SettingsScreen() {
             ) : null}
           </SettingsGroup>
           {notice ? <Text className="-mt-5 px-1 text-meta text-ink/60">{notice}</Text> : null}
+
+          {/* Kindred dreamers */}
+          <SettingsGroup title="Kindred dreamers">
+            <SettingsRow
+              icon="sparkle"
+              label="Connect me with kindred dreamers"
+              detail={
+                user?.shareDreams !== false
+                  ? 'People with alike dreams see your first name, photo and a one-line anonymous overview. Never the dream itself.'
+                  : 'Off: you are not shared and see no one'
+              }
+              onPress={() => router.push('/kindred')}
+              right={
+                <Switch
+                  accessibilityLabel="Kindred dreamers"
+                  value={user?.shareDreams !== false}
+                  onValueChange={updateSharing}
+                  trackColor={{ true: '#0B0B0F', false: 'rgba(11,11,15,0.15)' }}
+                  thumbColor="#FFFFFF"
+                />
+              }
+              last
+            />
+          </SettingsGroup>
 
           {/* Data + about */}
           <SettingsGroup title="Your dreams">

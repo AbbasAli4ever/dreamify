@@ -107,6 +107,7 @@ function RootStack() {
         />
         <Stack.Screen name="dream/[id]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="echo/[symbol]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="kindred" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="archive" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="search" options={{ presentation: 'modal' }} />
         <Stack.Screen name="patterns" options={{ animation: 'slide_from_right' }} />

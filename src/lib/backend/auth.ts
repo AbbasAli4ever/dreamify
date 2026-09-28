@@ -17,6 +17,8 @@ export type AuthUser = {
   avatarUrl?: string;
   provider: 'email' | 'google';
   onboarded: boolean;
+  /** Kindred dreamers: share an anonymous overview of each dream, and see others'. On unless turned off. */
+  shareDreams: boolean;
 };
 
 function client() {
@@ -46,8 +48,7 @@ export function toAuthUser(user: User): AuthUser {
   const email = user.email ?? '';
   // `display_name` is ours (sign-up form, Settings). Google's `full_name` is refreshed
   // on every Google sign-in, so an edited name must live under a separate key.
-  const name =
-    meta.display_name || meta.full_name || meta.name || email.split('@')[0] || 'Dreamer';
+  const name = meta.display_name || meta.full_name || meta.name || email.split('@')[0] || 'Dreamer';
   return {
     id: user.id,
     email,
@@ -55,6 +56,7 @@ export function toAuthUser(user: User): AuthUser {
     avatarUrl: meta.avatar_url || meta.picture || undefined,
     provider: user.app_metadata?.provider === 'google' ? 'google' : 'email',
     onboarded: meta.onboarded === true,
+    shareDreams: meta.share_dreams !== false,
   };
 }
 
@@ -93,8 +95,7 @@ export async function signUpWithEmail(name: string, email: string, password: str
   });
   if (error) throw error;
   // Supabase hides "already registered" when confirmations are on: it returns a user with no identities.
-  if (data.user && data.user.identities?.length === 0)
-    throw new Error('User already registered');
+  if (data.user && data.user.identities?.length === 0) throw new Error('User already registered');
   return !data.session;
 }
 
