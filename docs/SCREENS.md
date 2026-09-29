@@ -410,6 +410,8 @@ Each screen lists: **Purpose · Route · Layout (top→bottom) · Components · 
 
 ---
 
+**Clouds over the moon** (2026-09-29): on the first slide (and on A0 Welcome) a band of light grey clouds drifts across the moon from right to left, hiding parts of it and letting it show through the gaps: [`MoonClouds`](../src/components/ui/moon-clouds.tsx) slides `assets/images/moon-clouds.png` (made by [`scripts/generate-clouds.js`](../scripts/generate-clouds.js), tiles seamlessly) with the same cheap `CloudDrift` layer as Home's sky. Screenshot: [`screens/s1-moon-clouds-ios.jpg`](./screens/s1-moon-clouds-ios.jpg).
+
 ### A0–A4 — Accounts (welcome, sign in, sign up, forgot / new password)
 
 **Routes:** `/welcome`, `/sign-in`, `/sign-up`, `/forgot-password`, `/reset-password`, `/auth/callback` · **Theme:** night (same `NightBackground`, Bricolage `display` titles with one *emphasised* word, pill buttons, pill inputs like Search).
@@ -492,6 +494,9 @@ Each screen lists: **Purpose · Route · Layout (top→bottom) · Components · 
 Routes linked from Home that aren't built yet (`/record`, `/dream/[id]`, `/echo/[symbol]`, `/archive`, `/search`, `/patterns`) show a temporary `ComingSoon` screen.
 
 ---
+
+**Drifting clouds** (2026-09-29): Home's sky has soft moonlit clouds moving right to left: [`NightClouds`](../src/components/layout/night-clouds.tsx), enabled with `<NightBackground clouds />`. Two pre-rendered, seamlessly tiling PNGs (`assets/images/clouds-back.png` slow banks, `clouds-front.png` quicker wisps; made by [`scripts/generate-clouds.js`](../scripts/generate-clouds.js)) slide left on the UI thread, so only a transform changes per frame. (A live shader version made Home lag and was replaced.) They fade out before the rocks, pause while Home is covered, stand still with Reduce Motion, and work on web too.
+**Performance** (measured 2026-09-29, iOS simulator, Mac CPU with Home idle): any endlessly looping animation makes iOS recomposite the whole screen every frame, and the simulator does that on the Mac's CPU. Home with the clouds and mic ripples running: app ≈ 27%, simulator compositor (backboardd) ≈ 30%. With every loop off: app ≈ 4%, compositor ≈ 0, the same as Archive. Clouds alone added ≈ 5 points; the frosted buttons ≈ 0; Home re-rendered only twice, so React wasn't the cost. So: the clouds and ripples run on React Native's native driver (no per-frame JS or React work), and both **pause while Home scrolls**. On a real iPhone the GPU does this compositing, so check smoothness there. Screenshot: [`screens/s2-clouds-ios.jpg`](./screens/s2-clouds-ios.jpg).
 
 ### S3 — Write
 
@@ -609,6 +614,9 @@ Routes linked from Home that aren't built yet (`/record`, `/dream/[id]`, `/echo/
 - Fresh dreams reveal their sections with a staggered fade-up. Revisited dreams show them at once.
 - Hero blur-in = a blurred copy of the art (`blurRadius` 30) fading out over 1.2 s.
 Screenshots: [`screens/s5-reveal-existing.jpg`](./screens/s5-reveal-existing.jpg), [`s5-reveal-fresh-insight.jpg`](./screens/s5-reveal-fresh-insight.jpg), iOS [`s5-reveal-ios.jpg`](./screens/s5-reveal-ios.jpg), [`s5-insight-ios.jpg`](./screens/s5-insight-ios.jpg).
+
+**Entering a fresh dream — "the flight into the dream"** (2026-09-29): when a just-finished dream opens (`?fresh=1`, from Home or Processing), it fades in under [`DreamPortal`](../src/components/dream/dream-portal.tsx): a full-screen Skia runtime shader of billowing blue mist streaking outward from a churning, glowing core while the camera accelerates inward (2.6 s), ending in a pale flash that dissolves into the dream. The insights then reveal one by one (`PORTAL_REVEAL_MS`). Reduced motion skips it; web uses a simpler swelling glow ([`dream-portal.web.tsx`](../src/components/dream/dream-portal.web.tsx)). Revisited dreams open normally (slide).
+Verified on the iOS simulator (Expo Go): [`screens/s5-portal-ios.jpg`](./screens/s5-portal-ios.jpg).
 
 #### S5b — Reflection (pull-up insight sheet on S5)
 

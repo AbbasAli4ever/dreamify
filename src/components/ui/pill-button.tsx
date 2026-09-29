@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, Text, View, type PressableProps } from 'react-native';
 
+import { Frost } from '@/components/ui/frost';
 import { cn } from '@/lib/utils';
 
 type PillButtonProps = PressableProps & {
@@ -30,7 +31,7 @@ export function PillButton({
       accessibilityRole="button"
       className={cn(
         'h-14 flex-row items-center justify-center gap-2 rounded-full px-7 active:opacity-80',
-        solid ? 'bg-paper' : 'border border-paper/10 bg-paper/5',
+        solid ? 'bg-paper' : 'overflow-hidden border border-paper/15',
         disabled && !busy && 'opacity-50',
         className,
       )}
@@ -38,6 +39,7 @@ export function PillButton({
       accessibilityState={{ disabled: !!disabled, busy: !!busy }}
       {...props}
     >
+      {solid ? null : <Frost />}
       {busy ? (
         <ActivityIndicator color={solid ? '#0B0B0F' : '#FFFFFF'} />
       ) : (

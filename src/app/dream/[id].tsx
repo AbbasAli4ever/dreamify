@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AudioPlayButton } from '@/components/dream/audio-play-button';
 import { DreamHero } from '@/components/dream/dream-hero';
+import { DreamPortal, PORTAL_REVEAL_MS } from '@/components/dream/dream-portal';
 import { EchoCard } from '@/components/dream/echo-card';
 import { InsightCard } from '@/components/dream/insight-card';
 import { InsightSheet } from '@/components/dream/insight-sheet';
@@ -64,6 +65,8 @@ export default function DreamScreen() {
   // (which would cut its slide-down animation).
   const [sheetKey, setSheetKey] = useState(0);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
+  /** A fresh dream opens with the flight into it; the insights come in behind it. */
+  const [inPortal, setInPortal] = useState(isFresh);
 
   if (!dream) return <ComingSoon title="Dream not found" spec="S5" />;
 
@@ -76,7 +79,9 @@ export default function DreamScreen() {
   let step = 0;
   const reveal = (children: ReactNode) => (
     <Animated.View
-      entering={isFresh ? FadeInDown.delay(250 + step++ * 140).duration(600) : undefined}
+      entering={
+        isFresh ? FadeInDown.delay(PORTAL_REVEAL_MS + step++ * 140).duration(600) : undefined
+      }
     >
       {children}
     </Animated.View>
@@ -350,6 +355,8 @@ export default function DreamScreen() {
         onSave={saveInsight}
         transcribe={transcribeVoiceNote}
       />
+
+      {inPortal ? <DreamPortal onDone={() => setInPortal(false)} /> : null}
     </View>
   );
 }

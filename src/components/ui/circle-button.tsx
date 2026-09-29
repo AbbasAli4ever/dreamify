@@ -1,5 +1,6 @@
-import { Pressable, type PressableProps } from 'react-native';
+import { Pressable, View, type PressableProps } from 'react-native';
 
+import { Frost } from '@/components/ui/frost';
 import { Icon } from '@/components/ui/icon';
 import { colors } from '@/constants/theme';
 import type { IconName } from '@/constants/icons';
@@ -36,13 +37,17 @@ export function CircleButton({
         'items-center justify-center rounded-full active:opacity-70',
         solid && 'bg-paper',
         ink && 'border border-ink/15 bg-paper/50',
-        !solid && !ink && 'border border-paper/15 bg-night-900/40',
+        !solid && !ink && 'overflow-hidden border border-paper/15',
         className,
       )}
       style={{ width: s.box, height: s.box }}
       {...props}
     >
-      <Icon name={icon} size={s.icon} color={solid || ink ? colors.ink : colors.paper} />
+      {!solid && !ink ? <Frost /> : null}
+      {/* Wrapped so it stacks above the frost on web (absolute layers paint over bare SVGs). */}
+      <View>
+        <Icon name={icon} size={s.icon} color={solid || ink ? colors.ink : colors.paper} />
+      </View>
     </Pressable>
   );
 }

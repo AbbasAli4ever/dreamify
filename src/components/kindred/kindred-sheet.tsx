@@ -34,7 +34,9 @@ export function KindredSheet({ match, dream, connections, onClose }: KindredShee
       />
       {match ? (
         <Animated.View
-          entering={SlideInDown.springify().damping(20)}
+          // Slow, soft spring with a small settle: low stiffness for the pace, damping ratio
+          // ≈ 0.8 (damping / (2·√(stiffness·mass))) so it overshoots only slightly.
+          entering={SlideInDown.springify().mass(1.2).stiffness(70).damping(15)}
           style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}
         >
           <View

@@ -26,7 +26,7 @@ export function KindredCard({ people, streak, onPress }: KindredCardProps) {
       accessibilityRole="button"
       accessibilityLabel={`Kindred dreamers: ${message.replaceAll('*', '')}`}
       onPress={onPress}
-      className="rounded-card border border-paper/10 bg-night-900/55 p-5 active:opacity-80"
+      className="rounded-card border border-paper/10 bg-night-900/70 p-5 active:opacity-80"
     >
       <View className="flex-row items-center justify-between">
         <View className="flex-row items-center gap-2">

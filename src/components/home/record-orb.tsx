@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  Animated as NativeAnimated,
+  Easing as NativeEasing,
+  Platform,
+  Pressable,
+  View,
+} from 'react-native';
 import Animated, {
   Easing,
   interpolate,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withDelay,
-  withRepeat,
   withSpring,
   withTiming,
   type SharedValue,
@@ -26,38 +31,60 @@ const MORPH_MS = 650;
 /** Home's big orb turns slower than the engine default, so it feels calm and smooth. */
 const ORB_SPEED = 0.55;
 
-function Ripple({ delay, morph }: { delay: number; morph: SharedValue<number> }) {
+/**
+ * An expanding ring around the idle mic button. It loops forever, so it runs on React Native's
+ * native driver: no per-frame work in React. (Looping Reanimated styles re-committed Home's
+ * whole tree every frame, which made scrolling lag.) Pauses while Home isn't on top.
+ */
+function Ripple({
+  delay,
+  morph,
+  paused,
+}: {
+  delay: number;
+  morph: SharedValue<number>;
+  paused?: boolean;
+}) {
   const reduceMotion = useReducedMotion();
-  const t = useSharedValue(0);
+  const [t] = useState(() => new NativeAnimated.Value(0));
 
-  useEffect(() => {
-    if (reduceMotion) return;
-    t.value = withDelay(
-      delay,
-      withRepeat(withTiming(1, { duration: 3200, easing: Easing.out(Easing.quad) }), -1, false),
-    );
-  }, [reduceMotion, delay, t]);
+  useFocusEffect(
+    useCallback(() => {
+      if (reduceMotion || paused) return;
+      const loop = NativeAnimated.loop(
+        NativeAnimated.timing(t, {
+          toValue: 1,
+          duration: 3200,
+          easing: NativeEasing.out(NativeEasing.quad),
+          useNativeDriver: Platform.OS !== 'web',
+        }),
+      );
+      const start = setTimeout(() => loop.start(), delay);
+      return () => {
+        clearTimeout(start);
+        loop.stop();
+        t.setValue(0);
+      };
+    }, [reduceMotion, paused, delay, t]),
+  );
 
-  const style = useAnimatedStyle(() => ({
-    opacity: 0.45 * (1 - t.value) * (1 - morph.value),
-    transform: [{ scale: 1 + t.value * 0.6 }],
-  }));
+  // Fades away as the button morphs into the orb (changes only during the morph).
+  const hide = useAnimatedStyle(() => ({ opacity: 1 - morph.value }));
 
   return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        {
-          position: 'absolute',
+    <Animated.View pointerEvents="none" style={[{ position: 'absolute' }, hide]}>
+      <NativeAnimated.View
+        style={{
           width: BUTTON,
           height: BUTTON,
           borderRadius: BUTTON / 2,
           borderWidth: 1,
           borderColor: colors.paper,
-        },
-        style,
-      ]}
-    />
+          opacity: t.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0] }),
+          transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [1, 1.6] }) }],
+        }}
+      />
+    </Animated.View>
   );
 }
 
@@ -71,6 +98,8 @@ type RecordOrbProps = {
   /** Screen-reader name for the orb. */
   label?: string;
   onPress: () => void;
+  /** Hold the ripples still (while Home scrolls). */
+  paused?: boolean;
 };
 
 // Home's record control. Idle: the white mic button with ripples. Active: the
@@ -81,6 +110,7 @@ export function RecordOrb({
   state = 'listening',
   label = 'Listening',
   onPress,
+  paused,
 }: RecordOrbProps) {
   const morph = useSharedValue(0); // 0 = button, 1 = orb
   const pressed = useSharedValue(1);
@@ -136,8 +166,9 @@ export function RecordOrb({
           </Animated.View>
         ) : null}
 
-        <Ripple delay={0} morph={morph} />
-        <Ripple delay={1600} morph={morph} />
+        {/* Hidden under the orb anyway, so they stop while it's up. */}
+        <Ripple delay={0} morph={morph} paused={paused || active} />
+        <Ripple delay={1600} morph={morph} paused={paused || active} />
         <Animated.View
           style={[
             {

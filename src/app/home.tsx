@@ -61,6 +61,14 @@ export default function HomeScreen() {
   /** The spoken dream this screen is answering and processing, from ✓ until it opens. */
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [replyTimedOut, setReplyTimedOut] = useState<string | null>(null);
+  // Looping animations (clouds, mic ripples) hold still while the page scrolls: each makes
+  // iOS redraw the whole screen every frame, on top of the scroll's own redraws.
+  const [scrolling, setScrolling] = useState(false);
+  const scrollIdle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settle = (ms: number) => {
+    if (scrollIdle.current) clearTimeout(scrollIdle.current);
+    scrollIdle.current = setTimeout(() => setScrolling(false), ms);
+  };
 
   const recording = recorder.status !== 'idle';
   const paused = recorder.status === 'paused';
@@ -176,11 +184,23 @@ export default function HomeScreen() {
 
   return (
     <View className="flex-1 bg-night-900">
-      <NightBackground />
+      {/* The clouds hold still while the page scrolls and while the orb is up, so the orb
+          (redrawn every frame) never shares frames with them. */}
+      <NightBackground clouds cloudsPaused={scrolling || orbActive} />
 
       <ScrollView
         ref={scrollRef}
         scrollEnabled={!orbActive}
+        onScrollBeginDrag={() => {
+          if (scrollIdle.current) clearTimeout(scrollIdle.current);
+          setScrolling(true);
+        }}
+        // No momentum → resume shortly after the finger lifts; momentum cancels this.
+        onScrollEndDrag={() => settle(250)}
+        onMomentumScrollBegin={() => {
+          if (scrollIdle.current) clearTimeout(scrollIdle.current);
+        }}
+        onMomentumScrollEnd={() => settle(0)}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingTop: insets.top + 8,
@@ -244,6 +264,7 @@ export default function HomeScreen() {
                     : 'Listening'
             }
             onPress={startRecording}
+            paused={scrolling}
           />
 
           {answering ? null : recording ? (

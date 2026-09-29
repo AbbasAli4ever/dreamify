@@ -9,6 +9,7 @@ import { GoogleButton } from '@/components/auth/google-button';
 import { NightBackground } from '@/components/layout/night-background';
 import { Floating } from '@/components/ui/floating';
 import { Glow } from '@/components/ui/glow';
+import { MoonClouds } from '@/components/ui/moon-clouds';
 import { PillButton } from '@/components/ui/pill-button';
 import { RichText } from '@/components/ui/rich-text';
 import { Body } from '@/components/ui/typography';
@@ -67,6 +68,7 @@ export default function WelcomeScreen() {
                 style={{ width: moon, height: moon }}
               />
             </Floating>
+            <MoonClouds moon={moon} box={moon * 1.9} />
           </View>
         </View>
 

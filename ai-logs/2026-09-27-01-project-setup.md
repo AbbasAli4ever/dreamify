@@ -661,6 +661,104 @@ Designed and built **Kindred dreamers** (feature map in SCREENS.md S11, backend 
 
 Yes: the mesh is the separate `/kindred` screen (the user's photo in the centre, dreamers around it, threads between them; tap → pop-up with the dream overview). It wasn't visible because the backend wasn't deployed yet, so the app hid its entry points. Home's Kindred card now always shows (the way into the screen), and the screen explains when the backend can't be reached. Screenshots saved as `docs/screens/s11-kindred-*.jpg`. tsc + lint pass.
 
+## Prompt 51 (user)
+
+> [image: a blue, cloudy tunnel of mist bursting outward from a bright centre] we have to create this kind of animation when we when our result is generated and we are going to the the in to view the insides of the drill so like we clean like we are going into the dream and then the insights came afterwards like the full description like this thing.
+>
+> So we have to do that thing.
+
+## Response 51 (AI): summary
+
+Built `DreamPortal`: a Skia runtime shader (fbm noise in a polar "tunnel": radial streaks flowing outward, a domain-warped churning core, accelerating travel, a pale flash) that plays for 2.6 s over a freshly made dream, then fades into the page; the insights reveal after it. Fresh dreams now fade in (route option) instead of sliding. The shader was compiled and previewed with CanvasKit, then checked on the iOS simulator. A square-block artefact on iOS was fixed with a precision-safe hash. Web gets a simple glow fallback; reduced motion skips it. tsc + lint pass; the temporary test switch was removed.
+
+## Prompt 52 (user)
+
+> [screenshot: the Kindred dreamer pop-up] make a slow bouncy animation of this pop up... and bounce should be less
+
+## Response 52 (AI): summary
+
+The pop-up's slide-in spring went from `damping(20)` (default stiffness, quick) to `mass(1.2) stiffness(70) damping(15)`: slower, with a damping ratio of about 0.82 so it settles with only a small bounce. tsc + lint pass.
+
+## Prompt 53 (user)
+
+> [screenshot: Home's Search pill and round buttons over the Kindred card, text clashing] So we have to make the backgrounds of the containers blurry like search is mixing up with the behind content behind books and that behind books is mixing with the background lighting so text is not clear so we have to plug the background so the back component text so we have so tell a very little black shade in the background so that the content must be visible to it so do this change
+
+## Response 53 (AI): summary
+
+Added `Frost` (`src/components/ui/frost.tsx`: expo-blur `BlurView`, dark tint, intensity 30, plus a 40% black shade) behind every ghost `CircleButton` and ghost `PillButton`, so the floating bottom bar (and header buttons) blur whatever scrolls under them. The bottom bar's fade now darkens earlier (0 → 0.8 → 0.95), and the Dream Echo and Kindred cards got a slightly darker background (night-900 at 70% instead of 55%). Installed `expo-blur` with `npx expo install` (included in Expo Go). Verified in a demo-mode web build (the icons are wrapped so they sit above the blur on web). tsc + lint pass.
+
+## Prompt 54 (user)
+
+> [screenshot: Home's night sky] So we have to build clouds at the back end that are moving from right to left. So can you build at the clouds or I have to provide you the images like this
+
+## Response 54 (AI): summary
+
+No images needed: built `NightClouds`, a Skia shader of soft moonlit clouds (slow banks plus faster wisps for depth) drifting right to left, behind Home's content (`<NightBackground clouds />`). It fades before the rocks, pauses when Home isn't on top, and is static with Reduce Motion; web shows no clouds (no Skia there). Previewed with CanvasKit, then checked on the iOS simulator: the clouds moved left between frames. Faint rectangular seams on the simulator were fixed by wrapping the hash's inputs (also applied to the dream portal shader). tsc + lint pass; the temporary test switch was removed.
+
+## Prompt 55 (user)
+
+> The App is lagging to much with these clouds... so make them light... so light it create no impact... either you have to create the clouds as images and use them...
+
+## Response 55 (AI): summary
+
+The shader redrew every pixel each frame, so the clouds are now images: `scripts/generate-clouds.js` renders two seamlessly tiling transparent PNGs once (back banks 202 KB, front wisps 73 KB), and `NightClouds` slides two copies of each left with a Reanimated `translateX` (150 s and 85 s per loop), paused when Home isn't on top. No per-frame drawing remains. Checked the tiling seam in a preview and the drift on the iOS simulator; tsc + lint pass; temporary test switch removed.
+
+## Prompt 56 (user)
+
+> [screenshot: onboarding slide with the moon] So we have to put the clouds in front of one as well. like the are the color of light dark blue when it passes the moon like it feels like clouds are passing like this thing so we have to pass them through moon as well like someone is visible some some is not like this thing.
+
+## Response 56 (AI): summary
+
+Added a third generated image, `moon-clouds.png` (broken, pale-blue moonlit clouds, dense enough to veil the moon with gaps between), and `MoonClouds`, which drifts it right to left in front of the moon on the onboarding moon slide and the Welcome screen (Processing's moon is only a faint backdrop, so it was left alone). Home's drifting layer became a shared `CloudDrift` component; the generator gained colour and fade settings (Home's images re-rendered byte-identical). Fixed a hairline where the two tiles met (whole-point tiles, 1 pt overlap). Checked on the iOS simulator: clouds cross the moon, hiding parts of it. tsc + lint pass.
+
+## Prompt 57 (user)
+
+> The clouds are dense and dark, not whitish.... that goes in front of moon....
+
+## Response 57 (AI): summary
+
+Re-rendered `moon-clouds.png` as dark, dense night clouds: near-opaque navy bodies (opacity 0.96, denser thresholds) that block the moon, with lighter moonlit edges and gaps between clouds. Only the image and its generator settings changed. Previewed over the moon image; tsc + lint pass.
+
+## Prompt 58 (user)
+
+> not that much dense make them less dence not too white not too black like grayish grayish
+
+## Response 58 (AI): summary
+
+Re-rendered `moon-clouds.png` between the two earlier versions: low-saturation greys (mid-grey body, lighter edges), opacity 0.84, medium density, so the moon dims behind a cloud but stays visible, and shows clearly in the gaps. Previewed over the moon image (an in-between try at opacity 0.72 was too faint and was nudged up).
+
+## Prompt 59 (user)
+
+> make them white like before... before make them dark so revert them...
+
+## Response 59 (AI): summary
+
+Restored the first moon-cloud settings (pale moonlit blue-white, opacity 0.82) in `scripts/generate-clouds.js` and re-rendered `moon-clouds.png`; the file size matches the original (188 KB).
+
+## Prompt 60 (user)
+
+> make it a little grayish not like to much a little grayish like normal clouds color...
+
+## Response 60 (AI): summary
+
+Kept the white version's density and opacity and only desaturated the colours toward an everyday cloud grey (light parts 0.72/0.74/0.80, undersides 0.38/0.41/0.50, from a bluer white). Re-rendered `moon-clouds.png` and previewed over the moon.
+
+## Prompt 61 (user)
+
+> So there is a animation of clouds on a homepage. So homepage is blood stuck in like when I am scrolling and actually the PC is stuck in like this pc becomes low i don't know what is happening wrong but that thing is happening when i switch to the other to the other screen which not having that animation the it becomes right the scrolling becomes right no no lagging no no anything so analyze it why it's happening and make the app smooth like or we have to take it to the Iphone and share the screen accordingly...???
+
+## Response 61 (AI): summary
+
+Measured instead of guessing (Mac CPU, Home idle on the simulator, temporary switches): Home ≈ 27% app + 30% simulator compositor; without clouds and frost still ≈ 26% + 25%; Settings/Archive ≈ 3%; Home with every loop off (clouds and mic ripples) ≈ 4% and no compositor load. Home rendered only twice, so React wasn't the cause. Conclusion: any looping animation makes iOS redraw the whole screen every frame, and the simulator does that on the Mac's CPU. Changes: the mic ripples and cloud drift moved to React Native's native driver (no per-frame JS/React work), and both pause while Home is scrolled (resume when it settles). The idle cost on the simulator remains (it's the simulator compositing); on a real iPhone the GPU handles it, so testing on the phone is recommended. tsc + lint pass; temporary switches removed.
+
+## Prompt 62 (user)
+
+> orb animation is also lagging now......
+
+## Response 62 (AI): summary
+
+While the orb was up (recording, thinking, speaking), the clouds and the (hidden) mic ripples kept looping behind it, so three animations competed for every frame. Now Home's clouds pause while the orb is active (as well as while scrolling), and the ripples stop whenever the orb shows. tsc + lint pass.
+
 ---
 
 ## Full transcript (`/export`)

@@ -105,7 +105,16 @@ function RootStack() {
           name="processing/[id]"
           options={{ gestureEnabled: false, animation: 'fade' }}
         />
-        <Stack.Screen name="dream/[id]" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen
+          name="dream/[id]"
+          // A fresh dream is entered through DreamPortal, so it fades in instead of sliding.
+          options={({ route }) => ({
+            animation:
+              (route.params as { fresh?: string } | undefined)?.fresh === '1'
+                ? 'fade'
+                : 'slide_from_right',
+          })}
+        />
         <Stack.Screen name="echo/[symbol]" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="kindred" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="archive" options={{ animation: 'slide_from_right' }} />

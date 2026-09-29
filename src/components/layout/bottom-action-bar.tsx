@@ -44,7 +44,9 @@ export function BottomActionBar({ left, center, right, floating = true }: Bottom
     >
       <LinearGradient
         pointerEvents="none"
-        colors={['rgba(7, 8, 12, 0)', 'rgba(7, 8, 12, 0.85)']}
+        // Darkens early, so cards scrolling under the buttons fade out instead of clashing.
+        colors={['rgba(7, 8, 12, 0)', 'rgba(7, 8, 12, 0.8)', 'rgba(7, 8, 12, 0.95)']}
+        locations={[0, 0.45, 1]}
         style={StyleSheet.absoluteFill}
       />
       <View className="pt-8">{row}</View>

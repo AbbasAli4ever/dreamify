@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 
+import { NightClouds } from '@/components/layout/night-clouds';
 import { colors, gradients } from '@/constants/theme';
 
 type NightBackgroundProps = {
@@ -17,6 +18,10 @@ type NightBackgroundProps = {
   glowPosition?: { x: number; y: number };
   /** Darken the bottom so text over the rocks stays readable (0–1). */
   scrim?: number;
+  /** Clouds drifting right to left across the sky (Home). */
+  clouds?: boolean;
+  /** Hold the clouds still (while the screen scrolls, so scrolling stays smooth). */
+  cloudsPaused?: boolean;
 };
 
 // Deterministic pseudo-random so stars don't jump between renders.
@@ -36,6 +41,8 @@ export function NightBackground({
   glowColor,
   glowPosition = { x: 0.5, y: 0.3 },
   scrim = 0.5,
+  clouds = false,
+  cloudsPaused = false,
 }: NightBackgroundProps) {
   const { width, height } = useWindowDimensions();
 
@@ -65,6 +72,8 @@ export function NightBackground({
       ) : (
         <LinearGradient colors={gradients.night} style={StyleSheet.absoluteFill} />
       )}
+
+      {clouds ? <NightClouds paused={cloudsPaused} /> : null}
 
       {scrim > 0 ? (
         <LinearGradient

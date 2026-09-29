@@ -10,6 +10,7 @@ import Animated, {
 import { SymbolConstellation } from '@/components/onboarding/symbol-constellation';
 import { Floating } from '@/components/ui/floating';
 import { Glow } from '@/components/ui/glow';
+import { MoonClouds } from '@/components/ui/moon-clouds';
 import { RichText } from '@/components/ui/rich-text';
 import { Body } from '@/components/ui/typography';
 
@@ -52,6 +53,7 @@ function Visual({
             style={{ width: size, height: size }}
           />
         </Floating>
+        <MoonClouds moon={size} box={size * 1.8} />
       </View>
     );
   }
