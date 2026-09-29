@@ -1,4 +1,4 @@
-# Backend: Supabase + Gemini + Deepgram
+# Backend: Supabase + Groq + Cloudflare Workers AI + Deepgram
 
 Dreamify's backend lives in [`supabase/`](../supabase). Without it configured, the app runs on local sample data and a mock AI (see [`src/lib/ai/mock-analyzer.ts`](../src/lib/ai/mock-analyzer.ts)), so it always works for a demo.
 
@@ -12,15 +12,15 @@ record → upload .m4a ──────────────▶ Storage  dr
 insert dreams row (processing) ────▶ Postgres public.dreams  (RLS: own rows only)
 invoke process-dream ──────────────▶ Edge Function (replies 202, keeps working):
                                        1. download audio ──────────────────────▶ Deepgram nova-3 (STT)
-                                       2. transcript + earlier symbols ────────▶ Gemini (JSON analysis)
+                                       2. transcript + earlier symbols ────────▶ Groq gpt-oss-120b (strict JSON)
                                           → title, emotions, symbols (30-key icon vocabulary),
                                             themes, interpretation, question, art prompt, colour
                                        3. in parallel:
-                                          art prompt + house style ────────────▶ Gemini image model (4:5)
+                                          art prompt + house style ────────────▶ Cloudflare FLUX.1 schnell
                                           question ────────────────────────────▶ Deepgram Aura-2 (TTS)
                                        4. upload art + question audio, status = ready
                                        (voice dreams, right after STT, alongside step 2:)
-                                       transcript ─────────────────────────────▶ Gemini lite (3-sentence reply)
+                                       transcript ─────────────────────────────▶ Groq gpt-oss-20b (3-sentence reply)
                                        → dreams.reply_text
 poll the row (0.7 s, then 1.5 s) ◀── processing_stage 0 → 4, reply_text
 reply parts ⇄ speak (Edge Function) ─▶ Deepgram Aura-2, one call per sentence, in parallel
@@ -29,24 +29,26 @@ insight voice note → transcribe ───▶ Edge Function → Deepgram nova-3
 
 | AI requirement | Where |
 | --- | --- |
-| **Text** | Gemini analysis: title, emotions, symbols, themes, interpretation, reflection question |
-| **Images** | Gemini image model: the dream artwork |
+| **Text** | Groq (`openai/gpt-oss-120b`, strict JSON schema): title, emotions, symbols, themes, interpretation, reflection question, the anonymous Kindred overview. Groq `openai/gpt-oss-20b`: the agent's spoken reply |
+| **Images** | Cloudflare Workers AI (`@cf/black-forest-labs/flux-1-schnell`): the dream artwork |
+| **Embeddings** | Cloudflare Workers AI (`@cf/baai/bge-base-en-v1.5`, 768 dims): Kindred dreamers' "vibe" matching |
 | **Audio** | Deepgram: speech-to-text for dreams and voice insights; text-to-speech for the agent's spoken reply on Home and the "Listen" button on the question |
 
 Files:
 - [`supabase/migrations/…_init_dreams.sql`](../supabase/migrations): the `dreams` table, row-level security, private `dream-audio` and `dream-art` buckets.
-- [`supabase/functions/process-dream`](../supabase/functions/process-dream/index.ts), [`transcribe`](../supabase/functions/transcribe/index.ts), [`speak`](../supabase/functions/speak/index.ts) (voices one part of the reply; RLS-checked, 401 without a JWT, 404 for someone else's dream), shared [`reply.ts`](../supabase/functions/_shared/reply.ts) (sentence split, mirrored in `src/lib/reply.ts`), [`gemini.ts`](../supabase/functions/_shared/gemini.ts) / [`deepgram.ts`](../supabase/functions/_shared/deepgram.ts).
+- [`supabase/functions/process-dream`](../supabase/functions/process-dream/index.ts), [`transcribe`](../supabase/functions/transcribe/index.ts), [`speak`](../supabase/functions/speak/index.ts) (voices one part of the reply; RLS-checked, 401 without a JWT, 404 for someone else's dream), shared [`reply.ts`](../supabase/functions/_shared/reply.ts) (sentence split, mirrored in `src/lib/reply.ts`), [`ai.ts`](../supabase/functions/_shared/ai.ts) (prompts) on [`groq.ts`](../supabase/functions/_shared/groq.ts) and [`cloudflare.ts`](../supabase/functions/_shared/cloudflare.ts), and [`deepgram.ts`](../supabase/functions/_shared/deepgram.ts).
 - App side: [`src/lib/backend/`](../src/lib/backend) (client, data access) and [`src/providers/dreams-provider.tsx`](../src/providers/dreams-provider.tsx).
 - Kindred dreamers: [`…_kindred.sql`](../supabase/migrations/20260929120000_kindred.sql), [`functions/kindred`](../supabase/functions/kindred/index.ts), [`_shared/kindred.ts`](../supabase/functions/_shared/kindred.ts); app side [`kindred-api.ts`](../src/lib/backend/kindred-api.ts), [`use-kindred.ts`](../src/hooks/use-kindred.ts).
 
 ## Kindred dreamers (people who dreamt alike)
 
 ```text
-process-dream (step 3, in parallel with the art) ─▶ Gemini writes `gist`: one anonymous line
-                                                   ─▶ gemini-embedding-001 (768 dims) of gist + symbols + feelings
+process-dream (step 3, in parallel with the art) ─▶ Groq writes `gist` (part of the analysis): one anonymous line
+                                                   ─▶ Cloudflare bge-base-en-v1.5 (768 dims) of gist + symbols + feelings
                                                    → public.dream_shares (service role only)
 app, once per session ─▶ kindred (Edge Function): shares older dreams that have no row yet
-                         (Gemini lite writes their gist), 8 per call
+                         (Groq gpt-oss-20b writes their gist), 8 per call; and re-embeds up
+                         to 24 shares (anyone's) that have no embedding yet
 app ─▶ rpc kindred_for_dream(dream)  ─▶ other people's dreams within ±10 days, one per person
 app ─▶ rpc kindred_web()             ─▶ the same for every dream of the last 60 days (the circle)
 app ─▶ rpc dream_pulse(dream)        ─▶ how many dreamers around that night had each symbol
@@ -54,7 +56,7 @@ app ─▶ rpc dream_pulse(dream)        ─▶ how many dreamers around that ni
 
 - **Privacy by construction.** `dream_shares` has RLS on and *no* policies, so no client can read it. The three RPCs are `security definer`, check that the caller owns the dream, and return only: an opaque person id (`md5` of the user id), first name (`display_name`/Google name, never the email), photo URL, the gist, symbol keys, shared feelings, colour, days apart and the match %. Transcript, title, artwork and audio are never exposed.
 - **Opt-out, both ways.** `user_metadata.share_dreams = false` (Settings switch) removes you from everyone's results and returns nothing to you.
-- **Score** (0–1): `0.55 × vibe + 0.35 × shared symbols + 0.10 × shared feelings`, where vibe = `clamp((cosine − 0.70) / 0.18)` (measured: unrelated dreams ≈ 0.70 cosine, alike ones ≈ 0.80) and symbols/feelings = shared ÷ the smaller set. Shown as `40 + 60 × score` %, only from a score of 0.2 (52%). Without an embedding, symbols and feelings carry the score.
+- **Score** (0–1): `0.55 × vibe + 0.35 × shared symbols + 0.10 × shared feelings`, where vibe = `clamp((cosine − 0.66) / 0.20)` (calibrated for bge-base-en-v1.5: unrelated dreams ≈ 0.61 cosine, alike ones ≈ 0.78; see `…_kindred_bge.sql`) and symbols/feelings = shared ÷ the smaller set. Shown as `40 + 60 × score` %, only from a score of 0.2 (52%). Without an embedding, symbols and feelings carry the score.
 - Not fatal anywhere: a failed gist or embedding is logged and the dream is still ready.
 
 **Deploy** (after pulling this change):
@@ -62,7 +64,7 @@ app ─▶ rpc dream_pulse(dream)        ─▶ how many dreamers around that ni
 npx supabase db push                                   # creates dream_shares + the RPCs (enables pgvector)
 npx supabase functions deploy process-dream kindred --use-api
 ```
-Optional secret: `GEMINI_EMBED_MODEL` (default `gemini-embedding-001`; the score thresholds are calibrated for it).
+Optional secret: `CLOUDFLARE_EMBED_MODEL` (default `@cf/baai/bge-base-en-v1.5`; the score thresholds are calibrated for it, so a different model needs a new calibration).
 
 ## Accounts (Supabase Auth)
 
@@ -80,7 +82,7 @@ On iOS/Android, Hermes has no WebCrypto, so [`crypto-polyfill.ts`](../src/lib/ba
 
 Routing ([`src/app/_layout.tsx`](../src/app/_layout.tsx)) uses Expo Router's `Stack.Protected`: signed out → `/welcome`, `/sign-in`, `/sign-up`, `/forgot-password`; signed in, not onboarded → `/onboarding`; otherwise the app. Code: [`src/lib/backend/auth.ts`](../src/lib/backend/auth.ts), [`src/providers/auth-provider.tsx`](../src/providers/auth-provider.tsx). The redirect URL is `Linking.createURL('/auth/callback')`: `exp://<ip>:8081/--/auth/callback` in Expo Go, `dreamifyapp://auth/callback` in a build.
 
-**API keys never reach the app.** Gemini and Deepgram keys are Supabase secrets used only inside Edge Functions. The app only has the Supabase URL and the *publishable* key, which is safe to ship because RLS protects the data.
+**API keys never reach the app.** The Groq, Cloudflare and Deepgram keys are Supabase secrets used only inside Edge Functions. The app only has the Supabase URL and the *publishable* key, which is safe to ship because RLS protects the data.
 
 ## Setup (about 10 minutes)
 
@@ -91,12 +93,13 @@ Routing ([`src/app/_layout.tsx`](../src/app/_layout.tsx)) uses Expo Router's `St
    - **URL Configuration → Redirect URLs:** add `exp://**`, `dreamifyapp://**` and `http://localhost:8081/**`. Set the Site URL to `dreamifyapp://`.
    - **Google:** in [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → Create credentials → OAuth client ID → **Web application**, with the authorized redirect URI `https://<ref>.supabase.co/auth/v1/callback` (configure the OAuth consent screen first if asked). Paste the **Client ID** and **Client secret** into Sign In / Providers → **Google** and enable it.
 3. **Get the AI keys:**
-   - Gemini: [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+   - Groq: [console.groq.com/keys](https://console.groq.com/keys)
+   - Cloudflare Workers AI: your **Account ID** (dashboard → Workers & Pages, right-hand side) and an **API token** from [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens) → Create Token → template **Workers AI** (Read + Edit)
    - Deepgram: [console.deepgram.com](https://console.deepgram.com) → API Keys
 4. **Put the keys in the secrets file:**
    ```bash
    cp supabase/functions/.env.example supabase/functions/.env   # git-ignored
-   # fill in GEMINI_API_KEY and DEEPGRAM_API_KEY
+   # fill in GROQ_API_KEY, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN and DEEPGRAM_API_KEY
    ```
 5. **Link the project, create the database, set secrets and deploy the functions:**
    ```bash
@@ -104,7 +107,7 @@ Routing ([`src/app/_layout.tsx`](../src/app/_layout.tsx)) uses Expo Router's `St
    npx supabase link --project-ref <your-project-ref>
    npx supabase db push
    npx supabase secrets set --env-file supabase/functions/.env
-   npx supabase functions deploy process-dream transcribe speak
+   npx supabase functions deploy process-dream transcribe speak kindred --use-api
    ```
 6. **Connect the app:**
    ```bash
@@ -117,16 +120,22 @@ Routing ([`src/app/_layout.tsx`](../src/app/_layout.tsx)) uses Expo Router's `St
 
 ## Models
 
-Defaults come from the current docs (checked 2026-09-28) and can be changed without code changes:
+Defaults come from the providers' current docs (checked 2026-09-29) and can be changed without code changes:
 
 | Secret | Default |
 | --- | --- |
-| `GEMINI_TEXT_MODEL` | `gemini-3.8-flash` |
-| `GEMINI_IMAGE_MODEL` | `gemini-3.1-flash-image` |
+| `GROQ_TEXT_MODEL` | `openai/gpt-oss-120b` (analysis; strict structured outputs) |
+| `GROQ_FAST_MODEL` | `openai/gpt-oss-20b` (spoken reply, Kindred overview; falls back to the text model) |
+| `CLOUDFLARE_IMAGE_MODEL` | `@cf/black-forest-labs/flux-1-schnell` (square JPEG, 8 steps) |
+| `CLOUDFLARE_EMBED_MODEL` | `@cf/baai/bge-base-en-v1.5` (768 dims, CLS pooling; Kindred's score is calibrated for it) |
 | `DEEPGRAM_STT_MODEL` | `nova-3` |
 | `DEEPGRAM_TTS_VOICE` | `aura-2-athena-en` (calm, smooth) |
 
-Gemini is called through the `generateContent` REST API (documented as legacy but fully supported). Analysis uses `responseJsonSchema`, so the reply is validated JSON. Symbols are restricted to the 30 icon keys.
+Groq is called through its OpenAI-compatible `chat/completions` API. The analysis uses `response_format: json_schema` with `strict: true` (supported by the gpt-oss models), so the reply always matches the schema; symbols are restricted to the 30 icon keys. gpt-oss models reason before answering: `reasoning_effort: low` keeps that short and `include_reasoning: false` leaves it out of the reply. One retry on 429/5xx (the free tier has per-minute limits). Cloudflare Workers AI is called through its REST API (`/accounts/<id>/ai/run/<model>`).
+
+**Verified live (2026-09-29)** with the real keys, on a sample voice-style dream: spoken reply (gpt-oss-20b) 1.3 s; full analysis in the strict schema (gpt-oss-120b) 2.4 s; Kindred overview 0.7 s; bge embedding (768 dims) 1.7 s; FLUX.1 schnell artwork (1024×1024 JPEG, ~690 KB) 3.9 s, matching the dream. Note: FLUX.1 schnell rejects a `seed` field despite the docs listing it, so none is sent.
+
+*History:* until 2026-09-29 the text, images and embeddings came from Google Gemini (`gemini-3.8-flash`, `gemini-3.1-flash-image`, `gemini-embedding-001`); the project moved to Groq + Cloudflare when the Gemini prepaid credits ran out. The dated "Verified" sections below were measured with Gemini.
 
 ## Local development
 
@@ -140,7 +149,7 @@ npx expo start -c        # -c matters: EXPO_PUBLIC_* values are baked in at bund
 npx supabase stop         # when done (data is kept)
 ```
 
-`GEMINI_API_BASE` / `DEEPGRAM_API_BASE` can point the functions at a fake AI server for tests (they default to the real APIs).
+`DEEPGRAM_API_BASE` can point the functions at a fake Deepgram server for tests (it defaults to the real API).
 
 ### Verified locally (2026-09-28)
 

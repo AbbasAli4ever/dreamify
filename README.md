@@ -61,7 +61,7 @@ src/
 
 supabase/                   # Backend (see docs/BACKEND.md)
 ├── migrations/             # dreams table, RLS, private storage buckets
-└── functions/              # Edge Functions (Deno): process-dream, transcribe, speak (agent voice), _shared (Gemini, Deepgram)
+└── functions/              # Edge Functions (Deno): process-dream, transcribe, speak (agent voice), kindred, _shared (Groq, Cloudflare, Deepgram)
 ```
 
 | Next.js           | Expo Router        |
@@ -80,7 +80,7 @@ Use Tailwind classes through `className` on React Native components. Design toke
 
 ## Backend
 
-Supabase (Auth with email + password and Google, Postgres with RLS, Storage, Edge Functions) with **Gemini** for dream analysis and artwork and **Deepgram** for speech-to-text and text-to-speech. Setup and architecture: [`docs/BACKEND.md`](./docs/BACKEND.md). Without a `.env`, the app runs on local sample data with a mock AI.
+Supabase (Auth with email + password and Google, Postgres with RLS, Storage, Edge Functions) with **Groq** for dream analysis, **Cloudflare Workers AI** for artwork and **Deepgram** for speech-to-text and text-to-speech. Setup and architecture: [`docs/BACKEND.md`](./docs/BACKEND.md). Without a `.env`, the app runs on local sample data with a mock AI.
 
 ## Credits
 

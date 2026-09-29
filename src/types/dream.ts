@@ -27,7 +27,7 @@ export type Dream = {
   sample?: boolean;
 
   /**
-   * The agent's short spoken reaction to a voice dream (Gemini), voiced on Home by
+   * The agent's short spoken reaction to a voice dream (Groq), voiced on Home by
    * Deepgram TTS through the `speak` function. undefined = not ready yet; '' = none (the dream carries on).
    */
   reply?: { text: string };

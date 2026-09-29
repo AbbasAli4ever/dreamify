@@ -3,7 +3,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-import { embed } from './gemini.ts';
+import { embed } from './ai.ts';
 
 export type ShareInput = {
   dream_id: string;
@@ -15,6 +15,10 @@ export type ShareInput = {
   color: string | null;
 };
 
+/** What gets embedded: the overview plus its symbol keys and feelings. */
+const embeddingText = (gist: string, symbols: string[], emotions: string[]) =>
+  `${gist} Symbols: ${symbols.join(', ') || 'none'}. Felt: ${emotions.join(', ') || 'unknown'}.`;
+
 /**
  * Upserts the share row (service role). The embedding is optional: without it the dream
  * is still matched by symbols and feelings.
@@ -22,9 +26,7 @@ export type ShareInput = {
 export async function shareDream(admin: SupabaseClient, input: ShareInput) {
   const symbols = [...new Set(input.symbols.map((s) => s.key))];
   const emotions = [...new Set(input.emotions.map((e) => e.label.trim().toLowerCase()).filter(Boolean))];
-  const embedding = await embed(
-    `${input.gist} Symbols: ${symbols.join(', ') || 'none'}. Felt: ${emotions.join(', ') || 'unknown'}.`,
-  ).catch((e) => {
+  const embedding = await embed(embeddingText(input.gist, symbols, emotions)).catch((e) => {
     console.error('kindred embed failed', input.dream_id, String(e).slice(0, 200));
     return null;
   });
@@ -41,4 +43,34 @@ export async function shareDream(admin: SupabaseClient, input: ShareInput) {
     embedding: embedding ? JSON.stringify(embedding) : null,
   });
   if (error) throw new Error(`share failed: ${error.message}`);
+}
+
+/**
+ * Fills in missing embeddings (a failed embed, or rows cleared when the embedding model
+ * changed), newest first, for anyone's shares: vectors from different models can't be
+ * compared, so every row must be re-embedded with the current one. Returns how many it did.
+ */
+export async function reembedShares(admin: SupabaseClient, limit: number) {
+  const { data } = await admin
+    .from('dream_shares')
+    .select('dream_id, gist, symbols, emotions')
+    .is('embedding', null)
+    .order('dreamt_at', { ascending: false })
+    .limit(limit);
+  let done = 0;
+  await Promise.all(
+    (data ?? []).map(async (r: { dream_id: string; gist: string; symbols: string[]; emotions: string[] }) => {
+      try {
+        const vector = await embed(embeddingText(r.gist, r.symbols ?? [], r.emotions ?? []));
+        const { error } = await admin
+          .from('dream_shares')
+          .update({ embedding: JSON.stringify(vector) })
+          .eq('dream_id', r.dream_id);
+        if (!error) done++;
+      } catch (e) {
+        console.error('kindred re-embed failed', r.dream_id, String(e).slice(0, 200));
+      }
+    }),
+  );
+  return done;
 }

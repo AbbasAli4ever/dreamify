@@ -1,7 +1,8 @@
 // process-dream: turns a saved dream into a full one.
-//   Deepgram STT (voice dreams) → Gemini analysis → Gemini artwork + Deepgram TTS of the question.
-//   Voice dreams also get a short reply (Gemini) as soon as the words are known, in parallel with
-//   the analysis. The app plays it through the `speak` function (Deepgram voice, made on demand).
+//   Deepgram STT (voice dreams) → Groq analysis → Cloudflare Workers AI artwork + Deepgram TTS
+//   of the question. Voice dreams also get a short reply (Groq) as soon as the words are known,
+//   in parallel with the analysis. The app plays it through the `speak` function (Deepgram
+//   voice, made on demand).
 // Replies 202 at once and keeps working in the background; the app polls `processing_stage`.
 
 import '@supabase/functions-js/edge-runtime.d.ts';
@@ -9,7 +10,7 @@ import { withSupabase } from '@supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { transcribeAudio, speak } from '../_shared/deepgram.ts';
-import { analyzeDream, paintDream, replyToDream } from '../_shared/gemini.ts';
+import { analyzeDream, paintDream, replyToDream } from '../_shared/ai.ts';
 import { shareDream } from '../_shared/kindred.ts';
 
 type Admin = SupabaseClient;
@@ -51,7 +52,7 @@ async function run(admin: Admin, dream: DreamRow) {
       await update({ transcript });
     }
 
-    // Earlier dreams give Gemini context for recurring symbols (Dream Echo).
+    // Earlier dreams give the AI context for recurring symbols (Dream Echo).
     const { data: history } = await admin
       .from('dreams')
       .select('title, symbols')
@@ -140,7 +141,7 @@ async function run(admin: Admin, dream: DreamRow) {
 }
 
 /**
- * Gemini writes a short spoken reaction. Only the text is saved: the `speak` function
+ * Groq writes a short spoken reaction. Only the text is saved: the `speak` function
  * voices it on demand, which skips the storage upload, polling and signed-URL download.
  */
 async function reply(

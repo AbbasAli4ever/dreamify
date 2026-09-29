@@ -462,7 +462,7 @@ Each screen lists: **Purpose · Route · Layout (top→bottom) · Components · 
 
 **Answer mode** (2026-09-28, made minimal on the user's request): after ✓ the listening screen *becomes* the agent; no reply text, no checklist, no Processing screen.
 1. **Thinking:** headline "Taking it *in*…", orb in the `searching` shape.
-2. **Speaking:** the headline goes away; only the orb, in the `breathing` shape, moving with the agent's voice (Gemini writes a 3-sentence reply; Deepgram voices each sentence in parallel; the app plays them back to back and feeds the audio level to the orb). The words are heard, not shown.
+2. **Speaking:** the headline goes away; only the orb, in the `breathing` shape, moving with the agent's voice (Groq writes a 3-sentence reply; Deepgram voices each sentence in parallel; the app plays them back to back and feeds the audio level to the orb). The words are heard, not shown.
 3. **Working:** after the voice, the same screen stays: the orb takes the current step's shape (`working` → `composing` → `connecting` → `weaving`).
 4. **Throughout:** the only other UI is the slim `ProcessingBar` at the bottom: the current step ("Painting your dream…") over four thin segments (the active one pulses). On failure it shows "Couldn't finish this dream" (or "I couldn't hear any words") with **Try again** / **Close**.
 5. **Opens itself:** when the dream is ready (and the voice has finished), S5 opens (`fresh=1`). Back from S5 → the normal Home.
@@ -786,7 +786,7 @@ Screenshots: [`screens/s10-settings.jpg`](./screens/s10-settings.jpg), [`s10-set
 Feature map:
 | Part | What the user sees | Why it matters |
 | --- | --- | --- |
-| **Matching** | Dreams matched by *vibe* (Gemini embedding of an anonymous overview), shared **symbols** and shared **feelings**, ±10 days | The core: "someone dreamt like me" |
+| **Matching** | Dreams matched by *vibe* (embedding of an anonymous overview), shared **symbols** and shared **feelings**, ±10 days | The core: "someone dreamt like me" |
 | **Dream description (S5)** | "*3 dreamers* saw something like this within 10 days of you." / "*Maya* dreamt of *rain* 4 days before you." | The connection is part of the insight, not a separate feed |
 | **Mesh graph** | Your dream (S5) or you (S11) in the middle; each dreamer's avatar on an orbit (closer = more alike), threads coloured by their dream; dashed = same feel, different images; faint threads between dreamers who share a symbol | The picture of your circle |
 | **Pop-up** | Tap a dreamer: avatar, first name, "Dreamt 4 days before you", **% alike**, their dream *in one anonymous line*, "You both dreamt of", "You both felt" | Curiosity without exposure |

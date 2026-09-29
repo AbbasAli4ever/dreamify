@@ -759,6 +759,59 @@ Measured instead of guessing (Mac CPU, Home idle on the simulator, temporary swi
 
 While the orb was up (recording, thinking, speaking), the clouds and the (hidden) mic ripples kept looping behind it, so three animations competed for every frame. Now Home's clouds pause while the orb is active (as well as while scrolling), and the ripples stop whenever the orb shows. tsc + lint pass.
 
+## Prompt 63 (user)
+
+> I want login the EXPO cli and login to same account that I have registered oin expo go app in iphone
+
+## Response 63 (AI): summary
+
+Checked `npx expo whoami`: the CLI was not logged in. Logging in asks for the password, so the user runs it: `npx expo login` (email/username + password, plus a one-time code if 2FA is on), or `npx expo login --sso` if the Expo account was made with Google/GitHub, then `npx expo whoami` to confirm the same account as Expo Go. With the CLI and Expo Go on the same account, `npx expo start` shows the project in Expo Go's "Development servers" list on the iPhone. Advised not to paste the password in chat (it's saved to ai-logs).
+
+## Prompt 64 (user)
+
+> I have connected my iphone and creat recording in it but dream insight are not generating try agin option came up.... so what is the matter here???
+
+## Response 64 (AI): summary
+
+Read only the status and error of the latest dreams (`npx supabase db query --linked`, no transcripts shown). The two iPhone recordings (19:20, 19:21) were uploaded and transcribed by Deepgram, then failed at the Gemini analysis with `402 RESOURCE_EXHAUSTED: Your prepayment credits are depleted`. Earlier dreams that day were fine. Not an app bug: the Gemini (Google AI Studio) project needs its prepaid credits topped up, or a key from a project with credit set as the `GEMINI_API_KEY` secret (`npx supabase secrets set`, run by the user). Then "Try again" on each failed dream re-runs it. (In Expo Go, the Processing screen also shows the raw error under "We couldn't finish this one".)
+
+## Prompt 65 (user)
+
+> Now we have to use GROK API for text and analysis and we ahev to use the Cloudflare Workers AI for Images.....
+
+(Asked which one: the user chose **Groq** (groq.com), not xAI Grok.)
+
+## Response 65 (AI): summary
+
+Replaced Gemini in the Edge Functions (Deepgram unchanged):
+- `_shared/groq.ts`: OpenAI-compatible chat completions; gpt-oss models with `reasoning_effort: low`, `include_reasoning: false`; strict `json_schema` output; one retry on 429/5xx. `_shared/cloudflare.ts`: Workers AI REST: FLUX.1 schnell images (base64 JPEG, 8 steps) and bge-base-en-v1.5 embeddings (768 dims, CLS pooling). `_shared/ai.ts` (was `gemini.ts`): same prompts; analysis on `openai/gpt-oss-120b` with the strict schema (`additionalProperties: false` added), spoken reply and Kindred overview on `openai/gpt-oss-20b` with fallback to 120b. Model ids stay overridable secrets. Checked current Groq and Cloudflare docs before coding.
+- Kindred: bge vectors aren't comparable with the stored Gemini ones, so a new migration (`…_kindred_bge.sql`) clears them and recalibrates the vibe score. Calibrated locally with the same open model (transformers.js, CLS pooling): unrelated ≈ 0.61, alike ≈ 0.78, so vibe = clamp((cos − 0.66)/0.20) (was (cos − 0.70)/0.18). The `kindred` function now also re-embeds up to 24 shares with no embedding per call.
+- Updated `.env.example`, BACKEND.md (flow, models, setup, history note), README, AGENTS.md, SCREENS.md. deno check/lint, tsc and lint pass. Not yet run live: needs the user's Groq and Cloudflare keys as Supabase secrets, `db push` and a deploy.
+
+## Prompt 66 (user)
+
+> What is Cloudflare account ID, I have pasted the Token
+
+## Response 66 (AI): summary
+
+Explained the Account ID (a 32-character, non-secret id: dashboard → Account Home / Workers & Pages, or in the dashboard URL). Checked `.env` by names and lengths only: the token wasn't saved in the file yet, so asked the user to save it in the `NAME=value` format.
+
+## Prompt 67 (user)
+
+> I have pasted the APIs and removed the gemini API and I have deployed the keys on supabase as well....
+
+## Response 67 (AI): summary
+
+Verified `.env` (names and lengths only) and the Supabase secrets list: GROQ_API_KEY, CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN and DEEPGRAM_API_KEY are set (the old GEMINI_API_KEY secret is still there, unused). Ran the new AI code live on a sample dream: reply 1.3 s, analysis 2.4 s, overview 0.7 s, embedding 1.7 s (768 dims); the first image call failed because FLUX.1 schnell rejects `seed` (400), so it was removed; then the image took 3.9 s and matched the dream. The migration was already applied remotely, but the user's deploy (19:55) predated the seed fix, so `process-dream` was redeployed (v12). The two failed dreams hadn't been retried on the new version; the user retries them with Try again.
+
+## Prompt 68 (user)
+
+> Delete these two failed dreams..... I'll try the new one and also image generation is working???
+
+## Response 68 (AI): summary
+
+Listed the failed dreams first (exactly two, 19:20 and 19:21, voice, no artwork), deleted both rows by id (`status = 'failed'` guard) and their two recordings from the `dream-audio` bucket (`supabase storage rm --linked --experimental --yes`). 0 failed dreams remain. Confirmed image generation works (live FLUX.1 schnell test in the previous step, fix deployed in process-dream v12). The app still shows them until Home refreshes (pull down or reopen).
+
 ---
 
 ## Full transcript (`/export`)

@@ -1,5 +1,5 @@
 // The fixed symbol vocabulary. Keys match assets/icons/symbols/*.svg in the app,
-// so every symbol Gemini picks has an icon. Keep in sync with src/constants/symbols.ts.
+// so every symbol the AI picks has an icon. Keep in sync with src/constants/symbols.ts.
 export const SYMBOL_KEYS = [
   'bird', 'cat', 'cloud', 'crow', 'death', 'desert', 'door', 'eye', 'fire', 'forest',
   'grass', 'heart', 'house', 'key', 'light', 'mask', 'mirror', 'moon', 'mountain', 'ocean',

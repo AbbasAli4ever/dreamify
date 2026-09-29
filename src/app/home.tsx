@@ -35,7 +35,7 @@ const REPLY_TIMEOUT_MS = 25000;
 // S2 Home — docs/SCREENS.md §6. Voice capture happens here, in place:
 // the mic button morphs into the orb and the user never leaves Home.
 // After ✓ the same screen answers, minimally: the orb thinks, then speaks a short reply
-// (Gemini → Deepgram) and moves with the voice. Only a slim progress bar shows the
+// (Groq → Deepgram) and moves with the voice. Only a slim progress bar shows the
 // processing steps. When the dream is ready it opens by itself (no Processing screen).
 export default function HomeScreen() {
   const { height } = useWindowDimensions();

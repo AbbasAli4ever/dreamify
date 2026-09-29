@@ -8,7 +8,7 @@ export type KindredMatch = {
   /** First name only. */
   name: string;
   avatarUrl?: string;
-  /** Anonymous one-line overview of their dream (Gemini). */
+  /** Anonymous one-line overview of their dream (written by the AI). */
   gist: string;
   /** Symbol keys in their dream. */
   symbols: string[];
